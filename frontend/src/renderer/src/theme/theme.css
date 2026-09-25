@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+/* Dark (default) */
+[data-theme='dark'] {
+  --color-bg: 11 14 20;
+  --color-surface: 17 21 30;
+  --color-surface-raised: 24 29 40;
+  --color-border: 41 48 63;
+  --color-text: 226 232 240;
+  --color-text-muted: 148 159 178;
+  --color-accent: 99 179 237;
+  --color-accent-muted: 51 92 130;
+  --color-danger: 239 83 80;
+  --color-success: 102 214 158;
+  --color-warning: 245 197 66;
+}
+
+/* Light */
+[data-theme='light'] {
+  color-scheme: light;
+  --color-bg: 246 248 251;
+  --color-surface: 255 255 255;
+  --color-surface-raised: 255 255 255;
+  --color-border: 222 227 235;
+  --color-text: 22 27 34;
+  --color-text-muted: 92 102 117;
+  --color-accent: 32 111 191;
+  --color-accent-muted: 199 222 245;
+  --color-danger: 209 46 40;
+  --color-success: 27 138 84;
+  --color-warning: 158 108 0;
+}
+
+/* Red night-vision: preserves rod vision by removing blue/green light entirely */
+[data-theme='red'] {
+  color-scheme: dark;
+  --color-bg: 10 0 0;
+  --color-surface: 18 2 2;
+  --color-surface-raised: 28 4 4;
+  --color-border: 61 12 12;
+  --color-text: 255 70 70;
+  --color-text-muted: 150 40 40;
+  --color-accent: 255 90 90;
+  --color-accent-muted: 90 20 20;
+  --color-danger: 255 120 120;
+  --color-success: 255 70 70;
+  --color-warning: 255 70 70;
+}
+
+/* Custom: seeded from dark, overridden at runtime via inline style on :root
+   by ThemeContext when the user picks custom colors in Settings. */
+[data-theme='custom'] {
+  --color-bg: 11 14 20;
+  --color-surface: 17 21 30;
+  --color-surface-raised: 24 29 40;
+  --color-border: 41 48 63;
+  --color-text: 226 232 240;
+  --color-text-muted: 148 159 178;
+  --color-accent: 99 179 237;
+  --color-accent-muted: 51 92 130;
+  --color-danger: 239 83 80;
+  --color-success: 102 214 158;
+  --color-warning: 245 197 66;
+}
+
+body {
+  @apply bg-bg text-text antialiased;
+  margin: 0;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-border)) transparent;
+}

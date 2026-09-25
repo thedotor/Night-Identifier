@@ -1,0 +1,5 @@
+catalogue.json is derived from:
+- d3-celestial star data (Hipparcos-derived positions/magnitudes, star names),
+  BSD 3-Clause, https://github.com/ofrohn/d3-celestial
+- OpenNGC deep-sky catalogue, CC BY-SA 4.0, https://github.com/mattiaverga/OpenNGC
+Derived data must retain these attributions (and CC BY-SA for the DSO entries).

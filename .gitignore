@@ -1,0 +1,31 @@
+# Node / Electron
+node_modules/
+frontend/out/
+frontend/dist/
+frontend/release/
+*.log
+npm-debug.log*
+
+# Python
+backend/.venv/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# App data (databases, trained models, logs the app writes at runtime)
+*.db
+*.db-journal
+
+# Canon EDSDK (licensed, not redistributable)
+backend/vendor/edsdk/*
+!backend/vendor/edsdk/README.txt
+
+# Packaged backend build output
+backend/dist/
+backend/build/

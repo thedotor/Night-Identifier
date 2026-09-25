@@ -1,0 +1,11 @@
+Constellation illustrations (*.png) and their anchor-star data
+(art_anchors.json) come from the Stellarium project's "modern" sky culture:
+https://github.com/Stellarium/stellarium/tree/master/skycultures/modern
+
+Illustrations: Free Art License 1.3 (http://artlibre.org/licence/lal/en/).
+Text and data: CC BY-SA 4.0.
+Star positions used to resolve the anchors: d3-celestial (BSD 3-Clause),
+https://github.com/ofrohn/d3-celestial
+
+These files may be copied, distributed and modified under the terms of those
+licences; derived copies must carry the same licences and this notice.

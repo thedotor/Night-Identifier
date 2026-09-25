@@ -1,0 +1,22 @@
+appId: com.nightidentifier.app
+productName: Night Identifier
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+# The PyInstaller backend folder (built by "Build Installer.bat") ships next to the app; the main
+# process starts resources/backend/night-identifier-backend.exe.
+extraResources:
+  - from: ../backend/dist/night-identifier-backend
+    to: backend
+win:
+  target:
+    - target: nsis
+      arch: x64
+  artifactName: Night-Identifier-Setup.${ext}
+nsis:
+  oneClick: true
+  perMachine: false # installs under %LOCALAPPDATA%\Programs, no admin prompt; re-running upgrades in place
+  deleteAppDataOnUninstall: false # images/models/database live in Documents\Night Identifier and are never touched
+  shortcutName: Night Identifier
