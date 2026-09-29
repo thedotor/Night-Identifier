@@ -10,7 +10,7 @@ software and data, which keep their own licences. The in-app **About → Credits
 | Ultralytics (YOLO), ultralytics-thop | AGPL-3.0 | Why this project is AGPL-3.0 |
 | pi_heif / libheif | BSD-3-Clause / LGPL-3.0 | HEIC image support, used as a library |
 | certifi | MPL-2.0 | Unmodified |
-| PyTorch, torchvision | BSD-3-Clause | Includes NVIDIA CUDA runtime libraries under NVIDIA's own redistribution terms |
+| PyTorch, torchvision | BSD-3-Clause | The PyTorch CUDA wheel includes NVIDIA cudart, cuBLAS and cuDNN, which NVIDIA licenses for redistribution inside applications under the CUDA Toolkit EULA and cuDNN SLA. They stay under NVIDIA's terms, not the AGPL |
 | rawpy / LibRaw | MIT / LGPL-2.1 or CDDL-1.0 | RAW image decoding |
 | OpenCV, NumPy, psutil, FastAPI, SQLAlchemy, Pillow and the other Python packages | BSD / MIT / Apache-2.0 | Permissive |
 | Electron, React, Three.js and the other npm packages | MIT / BSD / Apache-2.0 | No GPL-family licences found |
@@ -27,7 +27,8 @@ software and data, which keep their own licences. The in-app **About → Credits
 | NASA, NOAA, USGS, JPL data feeds | Public domain |
 | Natural Earth | Public domain |
 | Sentinel-2 cloudless by EOX (streamed, not bundled) | CC BY-NC-SA 4.0, **non-commercial use only** |
-| Wikipedia / Wikimedia Commons photographs | Each image's own licence, shown beside it in the app |
+| Wikipedia / Wikimedia Commons photographs | Fetched live, never bundled. Each image's author and licence are read from Commons and shown beside it in the app |
+| Sky survey images (DSS and similar) | Fetched live, never bundled. Free for education and research, credit required |
 
 ## Not included
 
