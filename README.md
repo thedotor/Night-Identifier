@@ -140,4 +140,4 @@ A local-first desktop app — runs entirely on your own machine, with your own d
 
 **License**
 
-Night Identifier is free software under the [GNU AGPL-3.0](LICENSE). You may use, modify and redistribute it, provided derived work is released under the same license with its source available. It builds on third-party libraries (including Ultralytics, also AGPL-3.0) and public data feeds that keep their own licenses and terms.
+Night Identifier is free software under the [GNU AGPL-3.0](LICENSE) (see also [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). You may use, modify and redistribute it, provided derived work is released under the same license with its source available. It builds on third-party libraries (including Ultralytics, also AGPL-3.0) and public data feeds that keep their own licenses and terms.
