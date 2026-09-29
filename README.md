@@ -11,6 +11,14 @@ Drop in a photo and the app plate-solves it against a real star catalogue, then 
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+**Download**
+
+Get the Windows installer from the [latest release](https://github.com/thedotor/Night-Identifier/releases/latest). Download all three `Night-Identifier-Setup` files into one folder, then run `Night-Identifier-Setup.exe`.
+
+> The installer isn't code-signed yet, so Windows SmartScreen may show a warning. Click **More info → Run anyway**. You can verify your download against `SHA256SUMS.txt` on the release page.
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 **Dashboard** 
 
 <img width="1918" height="1043" alt="dash 1" src="https://github.com/user-attachments/assets/b13ffaf5-dc9c-47f0-8940-89b34a165b41" /> 
