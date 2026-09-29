@@ -36,3 +36,6 @@ backend/app/data/geoip/*
 # Packaged backend build output
 backend/dist/
 backend/build/
+
+# Local Claude Code settings (personal)
+.claude/
