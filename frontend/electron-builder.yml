@@ -4,19 +4,17 @@ directories:
   output: release
 files:
   - out/**
+  - resources/**
   - package.json
 # The PyInstaller backend folder (built by "Build Installer.bat") ships next to the app; the main
 # process starts resources/backend/night-identifier-backend.exe.
 extraResources:
   - from: ../backend/dist/night-identifier-backend
     to: backend
+# electron-builder only produces the unpacked app folder (release/win-unpacked). The installer itself
+# is made by Inno Setup (installer/night-identifier.iss) because NSIS can't handle a multi-GB payload.
 win:
+  icon: build/icon.ico
   target:
-    - target: nsis
+    - target: dir
       arch: x64
-  artifactName: Night-Identifier-Setup.${ext}
-nsis:
-  oneClick: true
-  perMachine: false # installs under %LOCALAPPDATA%\Programs, no admin prompt; re-running upgrades in place
-  deleteAppDataOnUninstall: false # images/models/database live in Documents\Night Identifier and are never touched
-  shortcutName: Night Identifier

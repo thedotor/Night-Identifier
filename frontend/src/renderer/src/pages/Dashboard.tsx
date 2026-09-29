@@ -1,124 +1,74 @@
-import { useEffect, useState, type ReactElement } from 'react'
-import { api, DashboardStats, HealthStatus, ImageStats, TrainingStatusOut } from '@renderer/lib/api'
+import { useState, type ReactElement } from 'react'
+import { usePageState } from '@renderer/lib/pageState'
+import { AddWidgetTray, DashboardGrid } from '@renderer/components/dashboard/DashboardGrid'
+import { PlaceBar } from '@renderer/components/dashboard/SkyCards'
+import { useDashboardLayout } from '@renderer/components/dashboard/useDashboardLayout'
+import { usePlace } from '@renderer/components/dashboard/usePlace'
+import { useDashData } from '@renderer/components/dashboard/useDashData'
 
-function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }): ReactElement {
-  return (
-    <div className="rounded-lg border border-border bg-surface p-4">
-      <div className="text-xs uppercase tracking-wide text-text-muted">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-text">{value}</div>
-      {hint && <div className="mt-1 text-xs text-text-muted">{hint}</div>}
-    </div>
-  )
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  const units = ['KB', 'MB', 'GB', 'TB']
-  let v = n / 1024
-  let i = 0
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024
-    i++
-  }
-  return `${v.toFixed(v >= 10 ? 0 : 1)} ${units[i]}`
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }): ReactElement {
-  return (
-    <>
-      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-text-muted">{title}</h2>
-      <div className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-4">{children}</div>
-    </>
-  )
-}
+const btn = 'rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-muted hover:border-accent hover:text-text'
 
 export function Dashboard(): ReactElement {
-  const [health, setHealth] = useState<HealthStatus | null>(null)
-  const [imageStats, setImageStats] = useState<ImageStats | null>(null)
-  const [training, setTraining] = useState<TrainingStatusOut | null>(null)
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { place, raw, save } = usePlace()
+  const layout = useDashboardLayout()
+  const [editing, setEditing] = usePageState('dashboard', 'editing', false, (v) => (typeof v === 'boolean' ? v : undefined))
+  const [confirmReset, setConfirmReset] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    api
-      .health()
-      .then((h) => {
-        if (!cancelled) setHealth(h)
-      })
-      .catch(() => {
-        if (!cancelled) setError('Backend unreachable')
-      })
-    api.get<ImageStats>('/images/stats').then((s) => !cancelled && setImageStats(s)).catch(() => {})
-    api
-      .get<TrainingStatusOut>('/training/status')
-      .then((s) => !cancelled && setTraining(s))
-      .catch(() => {})
-    api.get<DashboardStats>('/dashboard/stats').then((s) => !cancelled && setStats(s)).catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // Check is_running first: has_model can stay true from an older completed
-  // run while a newer run is in progress, so it alone can't tell us which
-  // run's id is actually behind the active model file.
-  const num = (v: number | undefined): string => (v === undefined ? '-' : v.toLocaleString())
-  const mapKey = Object.keys(training?.latest_run?.metrics ?? {}).find((k) => k.includes('mAP50(B)'))
-  const map50 = mapKey ? training?.latest_run?.metrics[mapKey] : undefined
-
-  const modelValue = training?.is_running
-    ? 'Training...'
-    : training?.has_model
-      ? 'Trained'
-      : 'No model trained'
+  const data = useDashData(place)
+  const error = data.error
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-8">
-      <h1 className="text-xl font-semibold text-text">Dashboard</h1>
-      <p className="mt-2 text-sm text-text-muted">Quick status across scanning, training, and the model.</p>
-
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Backend" value={error ? 'Offline' : health ? 'Online' : 'Checking...'} />
-        <StatCard
-          label="GPU"
-          value={health?.gpu_available ? 'Available' : health ? 'CPU only' : '-'}
-          hint={health?.gpu_name ?? undefined}
-        />
-        <StatCard label="Model version" value={modelValue} />
-        <StatCard
-          label="Pending images"
-          value={imageStats ? String(imageStats.pending) : '-'}
-          hint={imageStats ? `${imageStats.total} total in library` : undefined}
-        />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-text">Dashboard</h1>
+          <p className="mt-2 text-sm text-text-muted">
+            {editing ? 'Drag widgets to rearrange them, pick a width (1 to 4 columns), or remove them. Changes are saved as you go.' : 'Status across scanning, training and the sky.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className={btn} onClick={() => void window.api.monitor.open()} title="Open a second window of live monitoring cards (weather, aurora, ISS, lightning, a live globe…) to put on another monitor">
+            Pop out to a second monitor
+          </button>
+          {editing && (
+            <button
+              className={btn}
+              onClick={() => {
+                if (!confirmReset) return setConfirmReset(true)
+                layout.reset()
+                setConfirmReset(false)
+              }}
+              onBlur={() => setConfirmReset(false)}
+              title="Put every widget back where it started"
+            >
+              {confirmReset ? 'Click again to reset' : 'Reset layout'}
+            </button>
+          )}
+          <button
+            className={editing ? 'rounded-md border border-accent bg-accent/20 px-3 py-1.5 text-xs font-medium text-text' : btn}
+            onClick={() => {
+              setEditing((e) => !e)
+              setConfirmReset(false)
+            }}
+          >
+            {editing ? 'Done' : 'Customize'}
+          </button>
+        </div>
       </div>
 
-      <Section title="Library">
-        <StatCard label="Library images" value={num(stats?.library_images)} />
-        <StatCard
-          label="Processed"
-          value={num(stats?.processed_images)}
-          hint={stats ? `${stats.detections.toLocaleString()} detections` : undefined}
-        />
-        <StatCard label="Geotagged" value={num(stats?.geotagged_images)} hint="Shown on the Map" />
-        <StatCard label="Storage used" value={stats ? formatBytes(stats.storage_bytes) : '-'} />
-      </Section>
+      <div className="mt-4">
+        <PlaceBar raw={raw} place={place} save={save} />
+      </div>
 
-      <Section title="Training data & model">
-        <StatCard label="Training images" value={num(stats?.training_images)} />
-        <StatCard label="Object types" value={num(stats?.object_types)} />
-        <StatCard label="Manual annotations" value={num(stats?.manual_annotations)} />
-        <StatCard
-          label="Training runs"
-          value={num(stats?.training_runs)}
-          hint={stats ? `${stats.completed_training_runs} completed` : undefined}
-        />
-        <StatCard
-          label="Latest mAP50"
-          value={map50 !== undefined ? map50.toFixed(3) : '-'}
-          hint={training?.latest_run ? `Run #${training.latest_run.id}` : undefined}
-        />
-      </Section>
+      {editing && (
+        <div className="mt-4">
+          <AddWidgetTray hidden={layout.hidden} onAdd={layout.add} />
+        </div>
+      )}
+
+      <div className="mt-6">
+        <DashboardGrid layout={layout} data={data} editing={editing} />
+      </div>
 
       {error && (
         <div className="mt-6 rounded-md border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">

@@ -1,3 +1,4 @@
+import { readPageState, writePageState } from '@renderer/lib/pageState'
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { Stage, Layer, Image as KonvaImage, Rect, Ellipse, Line, Circle, Transformer } from 'react-konva'
 import type Konva from 'konva'
@@ -106,6 +107,14 @@ export function AnnotationCanvas({
   // Fit image to view once we know both the container size and image dimensions
   useEffect(() => {
     if (hasFit || stageSize.width === 0 || imageWidth === 0) return
+    // the zoom and pan this image had when it was last open
+    const saved = readPageState<{ scale: number; x: number; y: number } | null>('annotate', `view:${previewUrl}`, null)
+    if (saved && [saved.scale, saved.x, saved.y].every(Number.isFinite) && saved.scale > 0) {
+      setScale(clampScale(saved.scale))
+      setPos({ x: saved.x, y: saved.y })
+      setHasFit(true)
+      return
+    }
     const fitScale = Math.min(
       (stageSize.width * 0.92) / imageWidth,
       (stageSize.height * 0.92) / imageHeight
@@ -117,7 +126,14 @@ export function AnnotationCanvas({
       y: (stageSize.height - imageHeight * s) / 2
     })
     setHasFit(true)
-  }, [stageSize, imageWidth, imageHeight, hasFit])
+  }, [stageSize, imageWidth, imageHeight, hasFit, previewUrl])
+
+  // remember the view for next time
+  useEffect(() => {
+    if (!hasFit) return
+    const t = window.setTimeout(() => writePageState('annotate', `view:${previewUrl}`, { scale, x: pos.x, y: pos.y }), 300)
+    return () => window.clearTimeout(t)
+  }, [hasFit, scale, pos, previewUrl])
 
   // Reset fit state when switching images
   useEffect(() => {

@@ -6,6 +6,7 @@
 import * as Astronomy from 'astronomy-engine'
 import { KM_PER_AU, type MoonDef } from './solarSystemData'
 import { positionAtMeanAnomaly, type Vec3 } from './kepler'
+import { gmstDeg, precessionMatrix } from './skyMath'
 
 const J2000_MS = Date.UTC(2000, 0, 1, 12)
 const DEG = Math.PI / 180
@@ -40,6 +41,7 @@ export interface BodyFrame {
 /** IAU rotation model (via astronomy-engine): W is measured along the body's equator from the
  * node where that equator crosses the ICRF equator, which lies at right ascension alpha + 90 deg. */
 export function bodyFrame(astro: string, date: Date): BodyFrame {
+  if (astro === 'Earth') return earthFrame(date)
   const ax = Astronomy.RotationAxis(body(astro), date)
   const north = toEcl(ax.north)
   const alpha = ax.ra * 15 * (Math.PI / 180)
@@ -48,6 +50,21 @@ export function bodyFrame(astro: string, date: Date): BodyFrame {
   const nn = cross(north, node)
   const prime: Vec3 = [node[0] * Math.cos(w) + nn[0] * Math.sin(w), node[1] * Math.cos(w) + nn[1] * Math.sin(w), node[2] * Math.cos(w) + nn[2] * Math.sin(w)]
   return { north, prime, east: cross(north, prime), spin: ax.spin }
+}
+
+/**
+ * The Earth's own orientation, from precession and Greenwich sidereal time rather than the IAU
+ * rotation model, which is only good to a degree or so and drifts (about 0.7 degrees, 75 km on the
+ * ground, in 2026). Satellites, the day/night line and the map under a photo all need the true one.
+ * Nutation (under 20 arcseconds) is left out.
+ */
+function earthFrame(date: Date): BodyFrame {
+  const jd = julianDate(date.getTime())
+  const m = precessionMatrix(jd) // J2000 -> of date; the transpose goes back
+  const g = gmstDeg(jd) * DEG
+  const conv = (x: number, y: number, z: number): Vec3 =>
+    toEcl({ x: m[0][0] * x + m[1][0] * y + m[2][0] * z, y: m[0][1] * x + m[1][1] * y + m[2][1] * z, z: m[0][2] * x + m[1][2] * y + m[2][2] * z })
+  return { north: conv(0, 0, 1), prime: conv(Math.cos(g), Math.sin(g), 0), east: conv(-Math.sin(g), Math.cos(g), 0), spin: (gmstDeg(jd) + 270) % 360 }
 }
 
 /** Rotation axis (unit vector towards the north pole) and prime-meridian angle (degrees). */

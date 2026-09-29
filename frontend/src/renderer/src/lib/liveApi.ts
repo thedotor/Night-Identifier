@@ -8,7 +8,7 @@ export type CameraState = 'stopped' | 'connecting' | 'running' | 'lost' | 'error
 export interface LiveControl {
   name: string
   label: string
-  kind: 'range' | 'toggle' | 'choice' | 'action'
+  kind: 'range' | 'toggle' | 'choice' | 'action' | 'buttons' | 'info' | 'jog'
   value: number | boolean | string | null
   min: number | null
   max: number | null
@@ -84,6 +84,8 @@ export interface KindInfo {
 export interface DriverDiagnostic extends KindInfo {
   available: boolean
   note: string
+  /** Where this driver's vendor SDK files go (Documents/Night Identifier/...), for kinds that need one. */
+  sdk_path?: string | null
 }
 
 export interface StretchSpec {

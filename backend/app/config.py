@@ -39,6 +39,8 @@ class Settings(BaseSettings):
 
     host: str = "127.0.0.1"
     port: int = 8765
+    # Set by the Electron app for the packaged build (see services/api_guard.py); empty = no check.
+    api_token: str = ""
 
     data_dir: Path = _resolve_data_dir()
 

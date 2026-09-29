@@ -42,6 +42,8 @@ CREDITS = {
     "systems": "Planetary systems: NASA Exoplanet Archive",
     "distances": "Distances: SIMBAD, CDS Strasbourg (median of published measurements)",
     "localgroup": "Local Group galaxies: McConnachie (2012), AJ 144, 4, via VizieR/CDS",
+    "galaxies3": "Galaxy positions and redshifts: 2MASS Redshift Survey (Huchra et al. 2012, ApJS 199, 26) via VizieR/CDS",
+    "galaxytypes": "Galaxy shapes: SIMBAD, CDS Strasbourg (morphological types)",
 }
 
 
@@ -378,6 +380,69 @@ def local_group() -> dict[str, Any]:
     return _cached("localgroup", _fetch_local_group)
 
 
+# ---------- galaxies beyond the Local Group ----------
+
+_2MRS = '"J/ApJS/199/26/table3"'
+
+
+def _t_code(raw: Any) -> tuple[int, int]:
+    """(RC3 morphological type T, bar flag) from 2MRS's type field, e.g. ' 3A2s' -> (3, 0), '-2B_P' -> (-2, 1).
+    T is -5..-1 for ellipticals and lenticulars, 0..9 for spirals (Sa to Sm), 10 for irregulars; 99 when unknown."""
+    text = str(raw or "")
+    try:
+        t = int(text[:2])
+    except ValueError:
+        return 99, 0
+    if t >= 98 or t < -6:
+        return 99, 0
+    return t, 1 if text[2:3] in ("B", "X") else 0
+
+
+def _fetch_galaxies3d() -> dict[str, Any]:
+    adql = f'SELECT "RAJ2000", "DEJ2000", "Ktmag", "cz", "Riso", "b/a", "type" FROM {_2MRS} WHERE "cz" IS NOT NULL AND "Ktmag" IS NOT NULL'
+    rows: list[list[float | int]] = []
+    for ra, dec, kt, cz, riso, ba, typ in _tap(VIZIER, adql).get("data", []):
+        if None in (ra, dec, kt, cz):
+            continue
+        t, bar = _t_code(typ)
+        r, b = _num(riso), _num(ba)
+        # ra, dec (deg), heliocentric velocity (km/s), total K magnitude, log10 of the isophotal radius in arcsec (-1: none),
+        # axis ratio b/a (-1: none), RC3 type T (99: unknown), bar flag
+        rows.append([round(ra, 5), round(dec, 5), int(cz), round(kt, 2), round(r, 2) if r is not None else -1, round(b, 2) if b is not None else -1, t, bar])
+    if len(rows) < 1000:
+        raise FetchError("the galaxy survey came back nearly empty")
+    return {"columns": ["ra", "dec", "cz", "kt", "logr", "ba", "t", "bar"], "rows": rows}
+
+
+def galaxies3d() -> dict[str, Any]:
+    return _cached("galaxies3", _fetch_galaxies3d)
+
+
+def _fetch_galaxy_types() -> dict[str, Any]:
+    by_simbad: dict[str, str] = {}
+    for d in _catalogue()["dsos"]:
+        sid = _simbad_id(d["id"])
+        if sid:
+            by_simbad[sid] = d["id"]
+    ids = list(by_simbad)
+    out: dict[str, str] = {}
+    for lo in range(0, len(ids), SIMBAD_CHUNK):
+        chunk = ids[lo : lo + SIMBAD_CHUNK]
+        quoted = ",".join("'" + i.replace("'", "''") + "'" for i in chunk)
+        adql = f"SELECT i.id, b.morph_type FROM ident AS i JOIN basic AS b ON b.oid = i.oidref WHERE i.id IN ({quoted}) AND b.morph_type IS NOT NULL"
+        for sid, morph in _tap(SIMBAD, adql).get("data", []):
+            key = by_simbad.get(" ".join(str(sid).split()))
+            if key and str(morph).strip():
+                out[key] = str(morph).strip()
+    if not out:
+        raise FetchError("SIMBAD returned no galaxy types")
+    return {"types": out}
+
+
+def galaxy_types() -> dict[str, Any]:
+    return _cached("galaxytypes", _fetch_galaxy_types)
+
+
 def fetch_all() -> bool:
     """Everything, for the offline pack. True if every dataset is available."""
-    return all(not fn()["offline"] for fn in (stars, hosts, systems, distances, local_group))
+    return all(not fn()["offline"] for fn in (stars, hosts, systems, distances, local_group, galaxies3d, galaxy_types))

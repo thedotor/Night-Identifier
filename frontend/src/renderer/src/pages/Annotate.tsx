@@ -21,6 +21,7 @@ import { useBlockedAreas } from '@renderer/lib/blockedAreas'
 import { AnnotationCanvas, Tool } from '@renderer/components/annotate/AnnotationCanvas'
 import { colorForObjectType } from '@renderer/components/annotate/colors'
 
+import { usePageState } from '@renderer/lib/pageState'
 const TOOLS: { id: Tool; label: string; hint: string }[] = [
   { id: 'select', label: 'Select', hint: 'V' },
   { id: 'pan', label: 'Pan', hint: 'H' },
@@ -46,9 +47,9 @@ export function Annotate(): ReactElement {
   const [images, setImages] = useState<ImageRecord[]>([])
   const [selectedImageId, setSelectedImageId] = useState<number | null>(null)
   const [objectTypes, setObjectTypes] = useState<ObjectType[]>([])
-  const [activeObjectTypeId, setActiveObjectTypeId] = useState<number | null>(null)
+  const [activeObjectTypeId, setActiveObjectTypeId] = usePageState<number | null>('annotate', 'type', null, (v) => (typeof v === 'number' ? v : undefined))
   const [annotations, setAnnotations] = useState<Annotation[]>([])
-  const [tool, setTool] = useState<Tool>('select')
+  const [tool, setTool] = usePageState<Tool>('annotate', 'tool', 'select', (v) => (TOOLS.some((t) => t.id === v) ? (v as Tool) : undefined))
   const blocked = useBlockedAreas(selectedImageId)
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<number | null>(null)
   const [importing, setImporting] = useState(false)
@@ -56,8 +57,8 @@ export function Annotate(): ReactElement {
     null
   )
   const [error, setError] = useState<string | null>(null)
-  const [quickAddName, setQuickAddName] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
+  const [quickAddName, setQuickAddName] = usePageState('annotate', 'quickAdd', '', (v) => (typeof v === 'string' ? v : undefined))
+  const [typeFilter, setTypeFilter] = usePageState('annotate', 'typeFilter', '', (v) => (typeof v === 'string' ? v : undefined))
   const [typesHeight, setTypesHeight] = useState(readTypesHeight)
   const startResize = (e: React.PointerEvent<HTMLDivElement>): void => {
     e.preventDefault()
@@ -96,7 +97,7 @@ export function Annotate(): ReactElement {
       .get<ObjectType[]>('/objects')
       .then((types) => {
         setObjectTypes(types)
-        if (types.length > 0) setActiveObjectTypeId(types[0].id)
+        if (types.length > 0) setActiveObjectTypeId((cur) => (cur !== null && types.some((t) => t.id === cur) ? cur : types[0].id))
       })
       .catch(() => setError('Could not load object types from the backend.'))
   }, [])

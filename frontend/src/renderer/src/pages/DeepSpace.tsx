@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react'
+import { usePageState } from '@renderer/lib/pageState'
 import { useSearchParams } from 'react-router-dom'
 import type { DeepSpaceKind } from '@renderer/lib/api'
 import { loadCatalogue, type Catalogue } from '@renderer/lib/skyCatalogue'
@@ -52,8 +53,13 @@ function buildItems(cat: Catalogue | null): Item[] {
 function ObjectBrowser(): ReactElement {
   const [params, setParams] = useSearchParams()
   const [cat, setCat] = useState<Catalogue | null>(null)
-  const [query, setQuery] = useState('')
-  const [group, setGroup] = useState<Group | 'all'>('all')
+  const [query, setQuery] = usePageState('deep-sky', 'query', '', (v) => (typeof v === 'string' ? v : undefined))
+  const [group, setGroup] = usePageState<Group | 'all'>('deep-sky', 'group', 'all', (v) => (v === 'all' || GROUPS.some((g) => g.id === v) ? (v as Group | 'all') : undefined))
+  // the object that was open when the page was left (a link with its own object wins)
+  const [lastPick, setLastPick] = usePageState<{ kind: string; key: string } | null>('deep-sky', 'pick', null, (v) => {
+    const o = v as { kind?: unknown; key?: unknown }
+    return typeof o?.kind === 'string' && typeof o?.key === 'string' ? { kind: o.kind, key: o.key } : undefined
+  })
 
   useEffect(() => {
     void loadCatalogue().then(setCat).catch(() => undefined)
@@ -62,6 +68,13 @@ function ObjectBrowser(): ReactElement {
   const items = useMemo(() => buildItems(cat), [cat])
   const kind = params.get('kind') as DeepSpaceKind | null
   const key = params.get('key')
+  useEffect(() => {
+    if (kind && key !== null) setLastPick({ kind, key })
+    else if (lastPick) setParams({ kind: lastPick.kind, key: lastPick.key }, { replace: true })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (kind && key !== null) setLastPick({ kind, key })
+  }, [kind, key, setLastPick])
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -124,37 +137,30 @@ function ObjectBrowser(): ReactElement {
   )
 }
 
-const TABS: { id: 'objects' | 'solar'; label: string }[] = [
-  { id: 'objects', label: 'Objects' },
-  { id: 'solar', label: 'Solar system' }
-]
-
 /** Deep Space: object photos and facts, and the 3D solar system. The Sky Overlay links in with
  * ?view=solar&t=<photo time>&focus=<body>, or ?kind=&key= for one object. */
 export function DeepSpace(): ReactElement {
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
   const view = params.get('view') === 'solar' ? 'solar' : 'objects'
   const t = params.get('t')
   const photoMs = t ? Date.parse(t) : NaN
   const fromPhoto = Number.isFinite(photoMs)
   // The solar system keeps its start time for as long as the page is open, not per re-render.
   const [startMs] = useState(() => (fromPhoto ? photoMs : Date.now()))
+  const latParam = Number(params.get('lat'))
+  const lonParam = Number(params.get('lon'))
+  const showParam = params.get('show')
+  const viewAt =
+    params.get('lat') !== null && params.get('lon') !== null && Number.isFinite(latParam) && Number.isFinite(lonParam)
+      ? { latDeg: latParam, lonDeg: lonParam, ...(showParam === 'quakes' ? { show: 'quakes' as const } : showParam === 'volcanoes' ? { show: 'volcanoes' as const } : {}) }
+      : null
+  const satParam = Number(params.get('sat'))
+  const followSat = Number.isInteger(satParam) && satParam > 0 ? satParam : null
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 gap-1 border-b border-border bg-surface px-3 pt-2">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setParams(tab.id === 'solar' ? { view: 'solar', ...(t ? { t } : {}) } : {})}
-            className={`rounded-t-md border-x border-t px-4 py-1.5 text-xs font-medium ${view === tab.id ? 'border-border bg-bg text-text' : 'border-transparent text-text-muted hover:text-text'}`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
       <div className="min-h-0 flex-1">
-        {view === 'solar' ? <SolarSystemView startMs={startMs} fromPhoto={fromPhoto} focus={params.get('focus')} /> : <ObjectBrowser />}
+        {view === 'solar' ? <SolarSystemView startMs={startMs} fromPhoto={fromPhoto} focus={followSat === null && !viewAt ? params.get('focus') : null} followSat={followSat} viewAt={viewAt} /> : <ObjectBrowser />}
       </div>
     </div>
   )

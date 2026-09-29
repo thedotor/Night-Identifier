@@ -72,6 +72,16 @@ export function ThemeProvider({ children }: { children: ReactNode }): ReactEleme
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
+  // the other window (the main one, or the second-monitor one) changed the theme: follow it
+  useEffect(() => {
+    const onStorage = (e: StorageEvent): void => {
+      if (e.key === STORAGE_KEY) setThemeState(readStoredTheme())
+      else if (e.key === CUSTOM_STORAGE_KEY) setCustomColorsState(readStoredCustom())
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
   useEffect(() => {
     const root = document.documentElement.style
     const customProperties = [

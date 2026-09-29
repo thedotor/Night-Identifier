@@ -81,6 +81,63 @@ export function alignmentInFrame(align: SkyAlignment, frameJd: number): SkyAlign
   return { ...align, camera: S.cameraToJson(rebaseFrame(cam, align.frameJd, frameJd)), frameJd }
 }
 
+/** How well a stored alignment still lines up with the stars in a fresh picture. */
+export interface AlignmentCheck {
+  /** ok: it lines up. off: it does not (the camera was moved, or the lens or focus changed). unsure: too few stars to say (cloud, twilight, a covered lens). */
+  verdict: 'ok' | 'off' | 'unsure'
+  /** detected stars that have a catalogue star where the alignment says one should be */
+  matched: number
+  /** detected stars looked at */
+  tested: number
+  /** how many would match by luck, with this many catalogue stars in the frame */
+  chance: number
+}
+
+const CHECK_STARS = 40
+const CHECK_MIN_STARS = 6
+
+/**
+ * Compare the stars found in a picture (`detected`, in the camera's own pixels) with where the catalogue stars are predicted to be
+ * (`predicted`, same pixels, only those inside the frame). A camera that has not moved matches nearly every star; one that has been
+ * bumped matches about as many as chance would.
+ */
+export function checkAlignment(detected: readonly (readonly number[])[], predicted: readonly { x: number; y: number }[], width: number, height: number): AlignmentCheck {
+  const list = detected.slice(0, CHECK_STARS)
+  const tol = Math.max(6, 0.006 * width)
+  // grid of the predicted stars, so each detected star only looks at its neighbours
+  const cell = tol * 2
+  const cols = Math.ceil(width / cell) + 1
+  const grid = new Map<number, { x: number; y: number }[]>()
+  for (const p of predicted) {
+    const k = Math.floor(p.y / cell) * cols + Math.floor(p.x / cell)
+    const g = grid.get(k)
+    if (g) g.push(p)
+    else grid.set(k, [p])
+  }
+  let matched = 0
+  for (const d of list) {
+    const cx = Math.floor(d[0] / cell)
+    const cy = Math.floor(d[1] / cell)
+    let hit = false
+    for (let dy = -1; dy <= 1 && !hit; dy++)
+      for (let dx = -1; dx <= 1 && !hit; dx++) {
+        const g = grid.get((cy + dy) * cols + cx + dx)
+        if (g) hit = g.some((p) => Math.hypot(p.x - d[0], p.y - d[1]) <= tol)
+      }
+    if (hit) matched++
+  }
+  const density = predicted.length / Math.max(1, width * height)
+  const pChance = Math.min(1, Math.PI * tol * tol * density)
+  const chance = pChance * list.length
+  const sigma = Math.sqrt(list.length * pChance * (1 - pChance))
+  const base = { matched, tested: list.length, chance }
+  // too few stars, or so many catalogue stars that matching means nothing
+  if (list.length < CHECK_MIN_STARS || pChance > 0.5) return { verdict: 'unsure', ...base }
+  if (matched >= Math.max(4, chance + 4 * sigma) && matched >= 0.4 * list.length) return { verdict: 'ok', ...base }
+  if (matched <= chance + 2 * sigma) return { verdict: 'off', ...base }
+  return { verdict: 'unsure', ...base }
+}
+
 export interface SkySettings {
   on: boolean
   locked: boolean
@@ -88,12 +145,20 @@ export interface SkySettings {
   tracking: boolean
   lat: string
   lon: string
+  /** lat and lon were typed for this camera; otherwise they follow the location saved for the whole app */
+  ownPlace: boolean
   lens: S.Projection
   fovDeg: string
   /** the field of view above is trustworthy, so auto-align only searches near it (faster) */
   fovKnown: boolean
   alignment: SkyAlignment | null
   layers: Partial<SkyLayerFlags>
+  /** seconds the camera's picture lags real time; satellites are drawn where they were that long ago */
+  satLag: number
+  /** show aircraft (live ADS-B) around the camera */
+  planes: boolean
+  /** show shooting-star streaks while a real meteor shower is active */
+  meteors: boolean
 }
 
 /** The subset of overlay layers Live View offers. */
@@ -102,6 +167,7 @@ export interface SkyLayerFlags {
   constellations: boolean
   asterisms: boolean
   planets: boolean
+  satellites: boolean
   nebulae: boolean
   galaxies: boolean
   clusters: boolean
@@ -117,11 +183,15 @@ export const DEFAULT_SKY_SETTINGS: SkySettings = {
   tracking: false,
   lat: '',
   lon: '',
+  ownPlace: false,
   lens: 'rectilinear',
   fovDeg: '60',
   fovKnown: false,
   alignment: null,
-  layers: {}
+  layers: {},
+  satLag: 0,
+  planes: false,
+  meteors: true
 }
 
 export const parseNumber = (s: string): number | null => (s.trim() !== '' && Number.isFinite(Number(s)) ? Number(s) : null)

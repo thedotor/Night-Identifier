@@ -25,6 +25,13 @@ Thumbs.db
 # Canon EDSDK (licensed, not redistributable)
 backend/vendor/edsdk/*
 !backend/vendor/edsdk/README.txt
+# ...and never anywhere else either
+**/EDSDK*.dll
+**/EdsImage.dll
+
+# Offline IP-location database (fetched by backend/scripts/fetch_geoip.py; ~125 MB)
+backend/app/data/geoip/*
+!backend/app/data/geoip/README.txt
 
 # Packaged backend build output
 backend/dist/

@@ -4,7 +4,7 @@
 
 import { api } from '@renderer/lib/api'
 import { loadCatalogue } from '@renderer/lib/skyCatalogue'
-import type { DistancesData, HostsData, LocalGroupData, MoonElementsData, OrbitData, StarsData, SystemsData, TextureData } from '@renderer/lib/solarSystemData'
+import type { DistancesData, Galaxies3dData, GalaxyTypesData, HostsData, LocalGroupData, MoonElementsData, OrbitData, StarsData, SystemsData, TextureData } from '@renderer/lib/solarSystemData'
 import type { SolarSystemEngine } from './solarSystemEngine'
 
 export interface LoaderHooks {
@@ -52,5 +52,8 @@ export function loadUniverse(eng: SolarSystemEngine, h: LoaderHooks): void {
       return api.get<DistancesData>('/deepspace/distances').then(guard('nebula and galaxy distances', (d: DistancesData) => eng.setDeepSky(cat, d)))
     })
     .catch(fail('nebula and galaxy distances'))
+  // the shapes first, so the models come out right; the cloud of galaxies is remade whenever the flyable ones change
+  api.get<GalaxyTypesData>('/deepspace/galaxytypes').then(guard('galaxy shapes', (d: GalaxyTypesData) => eng.setGalaxyTypes(d))).catch(fail('galaxy shapes'))
+  api.get<Galaxies3dData>('/deepspace/galaxies3d').then(guard('distant galaxies', (d: Galaxies3dData) => eng.setGalaxyCatalogue(d))).catch(fail('distant galaxies'))
   api.get<LocalGroupData>('/deepspace/localgroup').then(guard('Local Group galaxies', (d: LocalGroupData) => eng.setLocalGroup(d))).catch(fail('Local Group galaxies'))
 }

@@ -5,7 +5,12 @@ from __future__ import annotations
 import importlib
 from typing import Any
 
+from app.config import settings
 from app.services.live.base import CameraDriver, DriverUnavailable
+
+# kind -> folder (inside the app's data folder, Documents/Night Identifier by default) where that
+# driver's vendor SDK files go. Shown in Settings for every kind that needs one, found or not.
+SDK_FOLDERS: dict[str, str] = {"canon": "edsdk", "zwo": "zwo"}
 
 # kind -> (module, class). Imported lazily so a missing SDK only affects its own kind.
 _DRIVERS: dict[str, tuple[str, str]] = {
@@ -101,5 +106,21 @@ def diagnostics() -> list[dict[str, Any]]:
             ok, note = canon.available()
         elif kind == "uvc":
             note = "Uses the camera drivers Windows already has."
-        out.append({"kind": kind, "label": KIND_LABELS.get(kind, kind), "available": ok, "note": note, "tested": TESTED.get(kind, "untested")})
+        sdk_folder = SDK_FOLDERS.get(kind)
+        sdk_dir = settings.data_dir / sdk_folder if sdk_folder else None
+        if sdk_dir is not None:
+            try:
+                sdk_dir.mkdir(parents=True, exist_ok=True)  # so "Open folder" always has somewhere to open
+            except OSError:
+                pass
+        out.append(
+            {
+                "kind": kind,
+                "label": KIND_LABELS.get(kind, kind),
+                "available": ok,
+                "note": note,
+                "tested": TESTED.get(kind, "untested"),
+                "sdk_path": str(sdk_dir) if sdk_dir else None,
+            }
+        )
     return out

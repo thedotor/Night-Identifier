@@ -5,8 +5,9 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
+from starlette.concurrency import run_in_threadpool
 
-from app.services import deepspace, galaxy, moons, orbits
+from app.services import deepspace, earthmaps, galaxy, moons, orbits, places
 from app.services.deepspace import FetchError
 
 router = APIRouter(prefix="/deepspace", tags=["deepspace"])
@@ -94,6 +95,18 @@ def get_local_group() -> dict[str, Any]:
     return galaxy.local_group()
 
 
+@router.get("/galaxies3d")
+def get_galaxies3d() -> dict[str, Any]:
+    """About 44,000 galaxies beyond the Local Group (2MASS Redshift Survey): rows of [ra, dec, cz_km_s, k_mag, log10_radius_arcsec, b/a, T, bar]."""
+    return galaxy.galaxies3d()
+
+
+@router.get("/galaxytypes")
+def get_galaxy_types() -> dict[str, Any]:
+    """Morphological type (SIMBAD) of each catalogue galaxy that has one, by catalogue id."""
+    return galaxy.galaxy_types()
+
+
 @router.get("/textures")
 def get_textures() -> dict[str, Any]:
     """Backend-relative URLs of the planet maps, and the credit they must be shown with."""
@@ -117,3 +130,67 @@ def clear_cache() -> dict[str, Any]:
         raise HTTPException(status_code=409, detail="Wait for the download to finish")
     deepspace.clear_cache()
     return deepspace.pack_status()
+
+
+# ---------- the Earth: high-resolution maps and cities ----------
+
+
+@router.get("/earth-map/{kind}/{level}")
+async def get_earth_map(kind: Literal["day", "night"], level: int) -> FileResponse:
+    """The whole-Earth picture (equirectangular): level 3 is 5120x2560, level 4 is 10240x5120. Stitched from NASA tiles on first use (about 10-30 s)."""
+    if level not in earthmaps.LEVELS:
+        raise HTTPException(status_code=404, detail="Unknown level")
+    try:
+        path = await run_in_threadpool(earthmaps.build_map, kind, level)
+    except FetchError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return FileResponse(path, media_type="image/jpeg", headers=_CACHE_HEADERS)
+
+
+@router.get("/science-map/{kind}")
+async def get_science_map(kind: Literal["ozone"]) -> FileResponse:
+    """A coarse global science layer (equirectangular), stitched from NASA GIBS and refreshed every few hours."""
+    try:
+        path = await run_in_threadpool(earthmaps.build_science_map, kind)
+    except FetchError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=1800"})
+
+
+@router.get("/earth-tile/{z}/{x}/{y}")
+async def get_earth_tile(z: int, x: int, y: int) -> FileResponse:
+    """A sharp close-up imagery tile of the Earth (256 px, web-map numbering, zoom 0-14), cached on disk."""
+    try:
+        path = await run_in_threadpool(earthmaps.tile, z, x, y)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail="No such tile") from e
+    except FetchError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return FileResponse(path, media_type="image/jpeg", headers=_CACHE_HEADERS)
+
+
+@router.get("/towns")
+async def get_towns() -> FileResponse:
+    """Every town and village of 1,000 people or more (GeoNames), biggest first, as one cached JSON file."""
+    try:
+        path = await run_in_threadpool(places.towns_file)
+    except FetchError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return FileResponse(path, media_type="application/json", headers=_CACHE_HEADERS)
+
+
+@router.get("/nearest-town")
+async def get_nearest_town(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=360), max_km: float = Query(60, gt=0, le=500)) -> dict[str, Any]:
+    try:
+        town = await run_in_threadpool(places.nearest, lat, lon, max_km)
+    except FetchError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return {"town": town, "credit": places.CREDIT}
+
+
+@router.get("/cities")
+async def get_cities() -> dict[str, Any]:
+    try:
+        return await run_in_threadpool(earthmaps.cities)
+    except FetchError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e

@@ -42,6 +42,7 @@ class CameraRuntime:
         self.thread: threading.Thread | None = None
         self.viewers = 0
         self.idle_since: float | None = None
+        self.busy = False  # the driver is mid-exposure: keep it running with no viewers
         self.pending: queue.Queue[tuple[str, Any, Future]] = queue.Queue()
         self.taps: dict[str, Callable[[Frame], None]] = {}  # called with every frame on the capture thread
         self.jobs: dict[str, Any] = {}  # running recorder / sequence / motion detector, by name
@@ -158,7 +159,7 @@ class LiveManager:
 
     @staticmethod
     def _wants_background(rt: CameraRuntime) -> bool:
-        return bool(rt.cfg.get("background")) or bool(rt.jobs)
+        return bool(rt.cfg.get("background")) or bool(rt.jobs) or rt.busy
 
     # ---- runtime registry ---------------------------------------------------------------
     def _runtime(self, camera_id: str) -> CameraRuntime | None:
@@ -328,6 +329,10 @@ class LiveManager:
                     frame = driver.read()
                     if hasattr(driver, "take_new_files"):
                         self._photos(rt, driver.take_new_files())
+                    rt.busy = driver.busy()
+                    if driver.controls_changed():
+                        rt.controls = driver.controls()
+                        self._emit(rt)
                     if frame is not None:
                         rt._publish(frame)
                         if time.time() - last_emit > STATUS_EVERY_S:  # keeps fps / size current in the UI
@@ -346,6 +351,7 @@ class LiveManager:
                 if was_running:
                     events.emit_threadsafe("live", {"type": "lost", "camera": rt.id, "name": rt.cfg.get("name"), "error": rt.error})
             finally:
+                rt.busy = False
                 if driver is not None:
                     try:
                         driver.close()
@@ -394,6 +400,7 @@ class LiveManager:
                 changed = True
             except Exception as exc:  # noqa: BLE001
                 fut.set_exception(exc)
+                changed = True  # the camera may still have changed something: show its real state, not the old one
         if changed:
             rt.controls = driver.controls()
             self._emit(rt)

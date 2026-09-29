@@ -15,19 +15,21 @@ export interface QualityPlan {
   maxStarVmag: number
   /** longitude x latitude segments of the Earth's globe */
   earthSegments: [number, number]
+  /** the Earth's picture: 0 = the 2048 px map, 3 = 5120 px, 4 = 10240 px (NASA Blue Marble, fetched and stitched by the backend) */
+  earthMapLevel: 0 | 3 | 4
 }
 
 export const PLANS: Record<QualityLevel, QualityPlan> = {
-  low: { antialias: false, pixelRatioCap: 1, milkyWayPoints: 50_000, maxStarVmag: 7.5, earthSegments: [96, 48] },
-  medium: { antialias: true, pixelRatioCap: 1.25, milkyWayPoints: 120_000, maxStarVmag: 9, earthSegments: [144, 72] },
-  high: { antialias: true, pixelRatioCap: 1.5, milkyWayPoints: 220_000, maxStarVmag: 99, earthSegments: [192, 96] }
+  low: { antialias: false, pixelRatioCap: 1, milkyWayPoints: 50_000, maxStarVmag: 7.5, earthSegments: [96, 48], earthMapLevel: 0 },
+  medium: { antialias: true, pixelRatioCap: 1.25, milkyWayPoints: 120_000, maxStarVmag: 9, earthSegments: [144, 72], earthMapLevel: 3 },
+  high: { antialias: true, pixelRatioCap: 1.5, milkyWayPoints: 220_000, maxStarVmag: 99, earthSegments: [192, 96], earthMapLevel: 4 }
 }
 
 export const QUALITY_LABELS: Record<QualitySetting, { label: string; description: string }> = {
   auto: { label: 'Auto', description: 'Picks from your graphics card' },
-  low: { label: 'Low', description: 'Fewer stars, no edge smoothing: for integrated or software graphics' },
-  medium: { label: 'Medium', description: 'A balance for laptops' },
-  high: { label: 'High', description: 'Everything: 38,000 stars and a dense galaxy' }
+  low: { label: 'Low', description: 'Fewer stars, no edge smoothing, a 2K Earth map: for integrated or software graphics' },
+  medium: { label: 'Medium', description: 'A balance for laptops (5K Earth map)' },
+  high: { label: 'High', description: 'Everything: 38,000 stars, a dense galaxy and a 10K Earth map (about 600 MB of graphics memory for the Earth)' }
 }
 
 const STORAGE_KEY = 'night-identifier:graphics-quality'

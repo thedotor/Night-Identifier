@@ -192,6 +192,15 @@ export interface LocalGroupGalaxy {
   ell: number | null
 }
 
+export interface Galaxies3dData extends Sourced {
+  /** [ra, dec, cz km/s, K magnitude, log10 radius arcsec (-1: none), b/a (-1: none), RC3 type T (99: unknown), bar] */
+  rows: number[][]
+}
+
+export interface GalaxyTypesData extends Sourced {
+  types: Record<string, string>
+}
+
 export interface LocalGroupData extends Sourced {
   galaxies: LocalGroupGalaxy[]
 }

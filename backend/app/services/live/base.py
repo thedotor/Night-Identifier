@@ -99,6 +99,16 @@ class CameraDriver:
     def controls(self) -> list[dict[str, Any]]:
         return []
 
+    def busy(self) -> bool:
+        """True while the camera is doing something that must not be cut short (a Bulb exposure): the
+        manager then keeps it open even with nobody watching."""
+        return False
+
+    def controls_changed(self) -> bool:
+        """True when the camera changed its own settings (a mode dial, battery, card...) and `controls()`
+        should be sent to the UI again. Called from the capture thread after each read."""
+        return False
+
     def set_control(self, name: str, value: Any) -> None:
         raise CameraError(f"Unknown control {name}")
 

@@ -26,6 +26,8 @@ export interface SkyLayer {
   paint: (ctx: CanvasRenderingContext2D, m: { k: number; width: number; height: number }) => void
   /** keep repainting a few times a second, so the overlay follows the turning sky */
   animate: boolean
+  /** a plain click on the picture, in source pixels (`k`: CSS pixels per source pixel); return true when something on the overlay took it */
+  click?: (at: Pt, m: { k: number }) => boolean
 }
 
 /** Mouse editing of the overlay's alignment; every position is in source-image pixels. */
@@ -62,6 +64,8 @@ interface Props {
   /** text shown until the first frame arrives (null: the parent shows its own status) */
   waitingText?: string | null
   className?: string
+  /** remember the zoom and pan under this localStorage key (single view only) */
+  viewKey?: string
 }
 
 interface View {
@@ -70,17 +74,44 @@ interface View {
   cy: number
 }
 
+const HOME_VIEW: View = { scale: 1, cx: 0.5, cy: 0.5 }
+
+function readView(key: string | undefined): View {
+  if (!key) return { ...HOME_VIEW }
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? 'null') as Partial<View> | null
+    if (v && [v.scale, v.cx, v.cy].every((n) => typeof n === 'number' && Number.isFinite(n)) && v.scale! >= 1 && v.scale! <= 40 && v.cx! >= 0 && v.cx! <= 1 && v.cy! >= 0 && v.cy! <= 1) return { scale: v.scale!, cx: v.cx!, cy: v.cy! }
+  } catch {
+    /* start from the whole picture */
+  }
+  return { ...HOME_VIEW }
+}
+
 function themeAccent(): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim()
   return v ? `rgb(${v.split(/\s+/).join(',')})` : '#63b3ed'
 }
 
 export const FeedCanvas = forwardRef<FeedHandle, Props>(function FeedCanvas(props, ref): ReactElement {
-  const { camId, sub, red, overlays, interactive, onHeader, onPick, marker, sky, skyEdit, className, waitingText = 'Waiting for the first frame…' } = props
+  const { camId, sub, red, overlays, interactive, onHeader, onPick, marker, sky, skyEdit, className, viewKey, waitingText = 'Waiting for the first frame…' } = props
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const last = useRef<{ bitmap: ImageBitmap; header: FrameHeader } | null>(null)
-  const view = useRef<View>({ scale: 1, cx: 0.5, cy: 0.5 })
+  const view = useRef<View>(null as unknown as View)
+  if (!view.current) view.current = readView(viewKey)
+  const saveTimer = useRef(0)
+  /** the zoom or pan changed: keep it for next time */
+  const persistView = useCallback(() => {
+    if (!viewKey) return
+    window.clearTimeout(saveTimer.current)
+    saveTimer.current = window.setTimeout(() => {
+      try {
+        localStorage.setItem(viewKey, JSON.stringify(view.current))
+      } catch {
+        /* not remembered */
+      }
+    }, 300)
+  }, [viewKey])
   const propsRef = useRef({ red, overlays, marker, sky })
   propsRef.current = { red, overlays, marker, sky }
   const editRef = useRef(skyEdit)
@@ -236,7 +267,8 @@ export const FeedCanvas = forwardRef<FeedHandle, Props>(function FeedCanvas(prop
   useImperativeHandle(ref, () => ({
     getBitmap: () => last.current?.bitmap ?? null,
     resetView: () => {
-      view.current = { scale: 1, cx: 0.5, cy: 0.5 }
+      view.current = { ...HOME_VIEW }
+      persistView()
       draw()
     }
   }))
@@ -365,6 +397,7 @@ export const FeedCanvas = forwardRef<FeedHandle, Props>(function FeedCanvas(prop
                   v.cy += before.fy - after.fy
                 }
               }
+              persistView()
               draw()
             }
           : undefined
@@ -412,6 +445,7 @@ export const FeedCanvas = forwardRef<FeedHandle, Props>(function FeedCanvas(prop
               const dh = cur.bitmap.height * fit * view.current.scale
               view.current.cx = d.cx - (e.clientX - d.x) / dw
               view.current.cy = d.cy - (e.clientY - d.y) / dh
+              persistView()
               draw()
             }
           : undefined
@@ -429,6 +463,16 @@ export const FeedCanvas = forwardRef<FeedHandle, Props>(function FeedCanvas(prop
                 if (at && rect) edit.pick(at, { x: e.clientX - rect.left, y: e.clientY - rect.top })
                 return
               }
+              const layer = propsRef.current.sky
+              if (layer?.click && e.button === 0 && !spaceDown.current) {
+                const at = toSource(e.clientX, e.clientY)
+                const cur = last.current
+                const rect = wrapRef.current?.getBoundingClientRect()
+                if (at && cur && rect) {
+                  const fit = Math.min(rect.width / cur.bitmap.width, rect.height / cur.bitmap.height) * view.current.scale
+                  if (layer.click(at, { k: (fit * cur.bitmap.width) / (cur.header.sw || cur.bitmap.width) })) return
+                }
+              }
               if (onPick) {
                 const f = toFraction(e.clientX, e.clientY)
                 if (f) onPick(f.fx, f.fy)
@@ -436,7 +480,7 @@ export const FeedCanvas = forwardRef<FeedHandle, Props>(function FeedCanvas(prop
             }
           : undefined
       }
-      onDoubleClick={interactive ? (): void => { view.current = { scale: 1, cx: 0.5, cy: 0.5 }; draw() } : undefined}
+      onDoubleClick={interactive ? (): void => { view.current = { ...HOME_VIEW }; persistView(); draw() } : undefined}
     >
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
       {waiting && waitingText && <div className="absolute inset-0 flex items-center justify-center text-xs text-text-muted">{waitingText}</div>}

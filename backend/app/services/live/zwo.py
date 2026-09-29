@@ -1,7 +1,8 @@
 """ZWO ASI cameras through ZWO's own SDK (ASICamera2.dll) using the `zwoasi` package.
 
-Needs: `pip install zwoasi` (uv add zwoasi) and ZWO's ASICamera2.dll. The DLL is looked for next to
-the app, in the ZWO / ASCOM install folders, on PATH, or at the path in the ZWO_ASI_LIB environment
+Needs: `pip install zwoasi` (uv add zwoasi) and ZWO's ASICamera2.dll. The DLL is looked for in the
+`zwo` folder inside the app's data folder (Documents/Night Identifier/zwo; it survives updates), next
+to the app, in the ZWO / ASCOM install folders, on PATH, or at the path in the ZWO_ASI_LIB environment
 variable. (If you already have ZWO's ASCOM driver installed, choosing the camera under "ASCOM"
 works too and needs none of this.)
 
@@ -17,6 +18,7 @@ from typing import Any
 
 import numpy as np
 
+from app.config import settings
 from app.services.live.base import CameraDriver, CameraError, DriverUnavailable, Frame, control
 
 _BAYER = {0: "RGGB", 1: "BGGR", 2: "GRBG", 3: "GBRG"}
@@ -28,7 +30,7 @@ def _find_library() -> str | None:
     if env and Path(env).exists():
         return env
     names = ["ASICamera2.dll"] if sys.platform == "win32" else ["libASICamera2.so", "libASICamera2.dylib"]
-    folders = [Path(__file__).resolve().parents[3], Path.cwd()]
+    folders = [settings.data_dir / "zwo", Path(__file__).resolve().parents[3], Path.cwd()]
     for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramW6432")):
         if base:
             folders += [Path(base) / "ZWO Design", Path(base) / "ASCOM" / "Platform 6 Developer Components", Path(base) / "ZWO ASIStudio", Path(base) / "ZWO Design" / "ASI SDK" / "lib" / "x64"]
@@ -59,7 +61,10 @@ def _asi() -> Any:
     if not _initialised:
         lib = _find_library()
         if lib is None:
-            raise DriverUnavailable("ZWO's ASICamera2.dll was not found. Install the ZWO ASI SDK / ASIStudio, or set the ZWO_ASI_LIB environment variable to its full path.")
+            raise DriverUnavailable(
+                f"ZWO's ASICamera2.dll was not found. Put it in {settings.data_dir / 'zwo'}, install the ZWO ASI SDK / ASIStudio, "
+                "or set the ZWO_ASI_LIB environment variable to its full path."
+            )
         try:
             asi.init(lib)
         except Exception as exc:  # noqa: BLE001

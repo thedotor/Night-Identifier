@@ -24,6 +24,8 @@ import xml.etree.ElementTree as ET
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
+from defusedxml.ElementTree import fromstring as safe_fromstring  # replies come from the LAN / the internet: no entity tricks
+
 from app.services.live.base import CameraError
 
 WS_DISCOVERY = ("239.255.255.250", 3702)
@@ -45,7 +47,7 @@ _PROBE = """<?xml version="1.0" encoding="UTF-8"?>
 def parse_probe_matches(data: bytes) -> list[dict[str, Any]]:
     """Cameras named in one WS-Discovery reply."""
     try:
-        root = ET.fromstring(data)
+        root = safe_fromstring(data)
     except ET.ParseError:
         return []
     out = []
@@ -100,7 +102,8 @@ def discover(timeout: float = 2.0) -> list[dict[str, Any]]:
 def _security_header(user: str, password: str, offset: dt.timedelta) -> str:
     nonce = os.urandom(16)
     created = (dt.datetime.now(dt.timezone.utc) + offset).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    digest = base64.b64encode(hashlib.sha1(nonce + created.encode() + password.encode()).digest()).decode()
+    # ONVIF's WS-UsernameToken mandates SHA-1 here
+    digest = base64.b64encode(hashlib.sha1(nonce + created.encode() + password.encode(), usedforsecurity=False).digest()).decode()
     return (
         '<s:Header><Security s:mustUnderstand="1" xmlns="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">'
         f'<UsernameToken><Username>{_esc(user)}</Username>'
@@ -136,7 +139,7 @@ def _call(url: str, body: str, user: str | None = None, password: str | None = N
     except (urllib.error.URLError, OSError) as exc:
         raise CameraError(f"Could not reach the camera at {url}: {exc}") from exc
     try:
-        root = ET.fromstring(data)
+        root = safe_fromstring(data)
     except ET.ParseError as exc:
         raise CameraError("The camera sent a reply that is not ONVIF") from exc
     fault = root.find(".//s:Fault", NS)

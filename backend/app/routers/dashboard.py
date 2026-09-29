@@ -41,3 +41,31 @@ def dashboard_stats(db: Session = Depends(get_db)) -> dict:
             .where(TrainingRun.status == TrainingStatus.COMPLETED)
         ),
     }
+
+
+@router.get("/disk")
+def disk_space() -> dict:
+    """Free space on the drive(s) the app writes to: the data folder (library, previews, models, Live View captures) and, if it is on a different drive, the watch folder."""
+    import shutil
+    from pathlib import Path
+
+    from app.config import settings
+    from app.services import app_settings
+
+    places: list[tuple[str, Path]] = [("Library and captures", settings.data_dir), ("Watch folder", app_settings.get_watch_dir())]
+    out: list[dict] = []
+    seen: set[str] = set()
+    for label, path in places:
+        target = path if path.exists() else next((p for p in path.parents if p.exists()), None)
+        if target is None:
+            continue
+        try:
+            usage = shutil.disk_usage(target)
+        except OSError:
+            continue
+        drive = target.resolve().anchor or str(target)
+        if drive in seen:
+            continue
+        seen.add(drive)
+        out.append({"label": label, "path": str(path), "drive": drive, "free_bytes": usage.free, "total_bytes": usage.total})
+    return {"drives": out}

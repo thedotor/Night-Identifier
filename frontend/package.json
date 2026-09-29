@@ -1,7 +1,7 @@
 {
   "name": "night-identifier",
   "version": "0.1.0",
-  "description": "Night Sky Object Identifier",
+  "description": "Night Identifier",
   "main": "./out/main/index.js",
   "author": "night-identifier",
   "private": true,
@@ -20,7 +20,8 @@
     "react-dom": "^19.2.0",
     "react-konva": "^19.3.0",
     "react-leaflet": "^5.0.0",
-    "react-router-dom": "^6.26.2",
+    "react-router-dom": "^7.18.4",
+    "satellite.js": "^7.1.0",
     "three": "^0.186.0",
     "use-image": "^1.1.4"
   },
@@ -31,14 +32,14 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@types/three": "^0.186.0",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.20",
-    "electron": "^32.1.2",
-    "electron-builder": "^24.13.3",
-    "electron-vite": "^2.3.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.2",
-    "vite": "^5.4.8"
+    "vite": "^7.3.6"
   }
 }

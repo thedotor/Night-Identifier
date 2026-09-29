@@ -120,6 +120,28 @@ check('going back in time turns the other way', L.earthTurnDeg(t0 + 0.01, t0) < 
   check('alignment round-trips through storage', later !== null && later.frameJd === t0 + 400 && later.how === 'auto' && later.matched === 30)
 }
 
+// 8. is a stored alignment still right? (compares detected stars with the catalogue's predicted places)
+{
+  let seed = 7
+  const rnd = (): number => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296)
+  const W = 1920
+  const H = 1080
+  const predicted = Array.from({ length: 300 }, () => ({ x: rnd() * W, y: rnd() * H }))
+  const seen = predicted.slice(0, 30).map((p) => [p.x + (rnd() - 0.5) * 3, p.y + (rnd() - 0.5) * 3, 100] as number[])
+  const same = L.checkAlignment(seen, predicted, W, H)
+  check('a camera that has not moved checks out', same.verdict === 'ok' && same.matched >= 28, `${same.matched}/${same.tested} chance ${same.chance.toFixed(1)}`)
+  const bumped = L.checkAlignment(seen.map((d) => [d[0] + 70, d[1] - 40, 100]), predicted, W, H)
+  check('a camera moved by ~80 px is off', bumped.verdict === 'off', `${bumped.matched}/${bumped.tested} chance ${bumped.chance.toFixed(1)}`)
+  const rotated = L.checkAlignment(seen.map((d) => [W - d[0], H - d[1], 100]), predicted, W, H)
+  check('a camera turned round is off', rotated.verdict === 'off', `${rotated.matched}/${rotated.tested}`)
+  const cloud = L.checkAlignment(seen.slice(0, 4), predicted, W, H)
+  check('too few stars is unsure, not off', cloud.verdict === 'unsure')
+  const crowded = L.checkAlignment(seen, Array.from({ length: 6000 }, () => ({ x: rnd() * W, y: rnd() * H })), W, H)
+  check('a catalogue so dense that anything matches is unsure', crowded.verdict === 'unsure', `${crowded.matched}/${crowded.tested} chance ${crowded.chance.toFixed(1)}`)
+  const partial = L.checkAlignment(seen.map((d, i) => (i < 22 ? d : [d[0] + 200, d[1] + 200, 100])), predicted, W, H)
+  check('most stars matching still counts as ok', partial.verdict === 'ok', `${partial.matched}/${partial.tested}`)
+}
+
 check('parseNumber', L.parseNumber(' 12.5 ') === 12.5 && L.parseNumber('') === null && L.parseNumber('abc') === null)
 check('site needs a valid latitude', L.siteFrom('95', '10', new Date()) === null && L.siteFrom('45', '-75', new Date()) !== null)
 

@@ -19,7 +19,7 @@ if not exist "frontend\node_modules" (
     if errorlevel 1 goto :error
 )
 
-echo Starting Night Sky Object Identifier...
+echo Starting Night Identifier...
 echo (closing this window will stop the app)
 echo.
 call npm run dev

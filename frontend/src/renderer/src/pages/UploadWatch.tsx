@@ -18,6 +18,7 @@ import {
 import { ContextMenu, ContextMenuItem } from '@renderer/components/ContextMenu'
 import { PropertiesModal } from '@renderer/components/PropertiesModal'
 
+import { usePageState } from '@renderer/lib/pageState'
 const FEED_LIMIT = 12
 
 export function UploadWatch(): ReactElement {
@@ -25,7 +26,7 @@ export function UploadWatch(): ReactElement {
   const [watchStatus, setWatchStatus] = useState<WatchFolderStatus | null>(null)
   const [feed, setFeed] = useState<{ id: number; text: string; kind: ScanEvent['type'] }[]>([])
   const [importing, setImporting] = useState(false)
-  const [moveOnImport, setMoveOnImport] = useState(false)
+  const [moveOnImport, setMoveOnImport] = usePageState('upload', 'moveOnImport', false, (v) => (typeof v === 'boolean' ? v : undefined))
   const [changingFolder, setChangingFolder] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState<string | null>(null)

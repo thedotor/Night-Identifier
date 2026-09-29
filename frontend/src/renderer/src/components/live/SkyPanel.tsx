@@ -2,6 +2,8 @@ import { useState, type ReactElement, type ReactNode } from 'react'
 import * as S from '@renderer/lib/skyMath'
 import { parseNumber } from '@renderer/lib/liveSky'
 import type { Layers } from '@renderer/lib/skyRender'
+import { SatellitePanel } from '@renderer/components/sky/SatellitePanel'
+import { AircraftKindRows } from '@renderer/components/aircraft/AircraftKinds'
 import type { LiveSky } from './useLiveSky'
 import { btn, btnActive, btnPrimary, input } from './ui'
 
@@ -52,6 +54,15 @@ function NumField(props: { label: string; value: number; digits?: number; suffix
   )
 }
 
+function checkText(c: LiveSky['check']): string {
+  if (c.busy) return 'Checking against the stars…'
+  const r = c.result
+  if (!r) return 'Not checked this visit.'
+  if (r.verdict === 'ok') return `✓ Still lines up with the stars (${r.matched} of ${r.tested} matched).`
+  if (r.verdict === 'off') return `✗ Does not line up any more (${r.matched} of ${r.tested} matched): the camera may have moved.`
+  return 'Could not tell: too few stars visible right now.'
+}
+
 export function SkyPanel({ sky, running }: { sky: LiveSky; running: boolean }): ReactElement {
   const { settings, camera } = sky
   const { on, locked, tracking, alignment } = settings
@@ -99,6 +110,14 @@ export function SkyPanel({ sky, running }: { sky: LiveSky; running: boolean }): 
           {alignment && sky.aligned && alignment.rmsPx !== undefined && (
             <div className="text-[11px] text-text-muted">
               {alignment.matched} stars fitted, RMS {alignment.rmsPx.toFixed(1)} px
+            </div>
+          )}
+          {alignment && sky.aligned && (
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className={sky.check.result?.verdict === 'ok' ? 'text-success' : sky.check.result?.verdict === 'off' ? 'text-warning' : 'text-text-muted'}>{checkText(sky.check)}</span>
+              <button className={btn} disabled={!running || sky.check.busy} onClick={() => void sky.runCheck()} title="Compare the stars in the picture with where the alignment says they should be">
+                Check now
+              </button>
             </div>
           )}
           {sky.message && <div className={`text-[11px] leading-snug ${sky.message.kind === 'error' ? 'text-danger' : 'text-text-muted'}`}>{sky.message.text}</div>}
@@ -225,16 +244,24 @@ export function SkyPanel({ sky, running }: { sky: LiveSky; running: boolean }): 
           <Block title="Where and how">
             <label className="flex items-center justify-between gap-2">
               <span className="text-text-muted">Latitude</span>
-              <input value={settings.lat} onChange={(e) => sky.update({ lat: e.target.value })} placeholder="e.g. 45.4" className="w-28 rounded border border-border bg-bg px-1 py-0.5 text-right text-text" />
+              <input value={settings.lat} onChange={(e) => sky.setPlace(e.target.value, settings.lon)} placeholder="e.g. 45.4" className="w-28 rounded border border-border bg-bg px-1 py-0.5 text-right text-text" />
             </label>
             <label className="flex items-center justify-between gap-2">
               <span className="text-text-muted">Longitude</span>
-              <input value={settings.lon} onChange={(e) => sky.update({ lon: e.target.value })} placeholder="e.g. -75.7" className="w-28 rounded border border-border bg-bg px-1 py-0.5 text-right text-text" />
+              <input value={settings.lon} onChange={(e) => sky.setPlace(settings.lat, e.target.value)} placeholder="e.g. -75.7" className="w-28 rounded border border-border bg-bg px-1 py-0.5 text-right text-text" />
             </label>
+            <div className="flex items-center justify-between gap-2 text-[11px] text-text-muted">
+              <span>{settings.ownPlace ? 'Typed for this camera.' : hasSite ? 'From your saved location (the same as the Dashboard).' : 'No saved location yet: set one on the Dashboard, or type it here.'}</span>
+              {settings.ownPlace && (
+                <button className={btn} onClick={sky.followAppPlace} title="Go back to the location saved for the whole app">
+                  Use my saved location
+                </button>
+              )}
+            </div>
             <div className="text-[11px] leading-snug text-text-muted">
               {hasSite
-                ? 'Used for the horizon, altitude/azimuth aiming and where the Moon appears. The stars follow the sky without it.'
-                : 'Optional. Add it to draw the horizon and aim by altitude and azimuth. The stars follow the sky without it.'}
+                ? 'Used for the horizon, altitude/azimuth aiming, where the Moon appears and where satellites are. The stars follow the sky without it.'
+                : 'Needed for satellites; also draws the horizon and lets you aim by altitude and azimuth. The stars follow the sky without it.'}
             </div>
             <label className="flex items-start gap-2" title="A camera on a star tracker or equatorial mount keeps the stars still in its picture, so the overlay must not turn.">
               <input type="checkbox" className="mt-0.5" checked={tracking} onChange={(e) => sky.setTracking(e.target.checked)} />
@@ -243,6 +270,63 @@ export function SkyPanel({ sky, running }: { sky: LiveSky; running: boolean }): 
                 <span className="block text-[11px] text-text-muted">The stars hold still in the picture, so the overlay does too.</span>
               </span>
             </label>
+          </Block>
+
+          <Block title="Satellites">
+            <SatellitePanel
+              enabled={sky.sat.enabled}
+              onEnabled={sky.sat.setEnabled}
+              options={sky.sat.options}
+              onOptions={sky.sat.setOptions}
+              view={sky.sat.view}
+              missing={sky.sat.missing}
+              lag={{ value: sky.sat.lag, onChange: sky.sat.setLag }}
+            />
+          </Block>
+
+          <Block title="Aircraft">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={sky.planes.enabled} onChange={(e) => sky.planes.setEnabled(e.target.checked)} />
+              Show aircraft (live)
+            </label>
+            {!sky.planes.enabled && <div className="text-text-muted">Aircraft around the camera from live ADS-B reports: an icon for what each is (airliner, business jet, small plane, helicopter…) pointing the way it is heading, with its flight number, flight level and type. Needs an internet connection.</div>}
+            {sky.planes.enabled && (
+              <div className="space-y-0.5 text-text-muted">
+                {sky.planes.missing.length > 0 && <div className="text-warning">Needs this camera&apos;s location (set it under Location above).</div>}
+                {sky.planes.loading && !sky.planes.fetchedAt && <div>Loading aircraft…</div>}
+                {sky.planes.error && <div className="text-warning">{sky.planes.error}</div>}
+                {sky.planes.fetchedAt && (
+                  <div>
+                    {sky.planes.count} shown, above the horizon within about 280 km, updated every 5 s
+                  </div>
+                )}
+                {sky.planes.fetchedAt && (
+                  <div className="text-text">
+                    <AircraftKindRows filter={sky.planes.kinds} counts={sky.planes.counts} compact />
+                  </div>
+                )}
+                {sky.planes.credit && <div className="text-[10px]">{sky.planes.credit}</div>}
+              </div>
+            )}
+          </Block>
+
+          <Block title="Meteor showers">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={sky.meteors.enabled} onChange={(e) => sky.meteors.setEnabled(e.target.checked)} />
+              Show shooting stars
+            </label>
+            {!sky.meteors.enabled && <div className="text-text-muted">Brief streaks from whichever real meteor shower is active, from the correct radiant, at roughly its real rate.</div>}
+            {sky.meteors.enabled && (
+              <div className="space-y-0.5 text-text-muted">
+                {sky.meteors.missing.length > 0 && <div className="text-warning">Needs this camera&apos;s location (set it under Location above).</div>}
+                {sky.meteors.missing.length === 0 && sky.meteors.active.length === 0 && <div>No shower is active right now.</div>}
+                {sky.meteors.active.map((a) => (
+                  <div key={a.name}>
+                    {a.name}: {a.rateNow > 0 ? `~${a.rateNow}/hr from here now` : 'active, but not currently visible from here'}
+                  </div>
+                ))}
+              </div>
+            )}
           </Block>
 
           <Block title="Layers">

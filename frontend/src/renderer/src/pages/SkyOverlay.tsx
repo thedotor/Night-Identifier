@@ -8,9 +8,15 @@ import { solarSystem } from '@renderer/lib/skyEphemeris'
 import { inAnyRegion, useBlockedAreas } from '@renderer/lib/blockedAreas'
 import { DEFAULT_LAYERS, type Layers, type PairMark } from '@renderer/lib/skyRender'
 import { SkyOverlayCanvas, type PickedStar, type SkyMode } from '@renderer/components/sky/SkyOverlayCanvas'
+import { SatelliteCard } from '@renderer/components/sky/SatelliteCard'
+import { SatellitePanel } from '@renderer/components/sky/SatellitePanel'
+import { useSatClock, useSatOptions, useSatView } from '@renderer/components/sky/useSatellites'
+import type { Site } from '@renderer/lib/satellites'
 import type { SolveRequest, SolveResponse } from '@renderer/lib/plateSolve.worker'
 import SolveWorker from '@renderer/lib/plateSolve.worker?worker'
 
+import { usePageState } from '@renderer/lib/pageState'
+import { rememberPlace } from '@renderer/lib/location'
 interface SkyInit {
   width: number
   height: number
@@ -147,15 +153,20 @@ export function SkyOverlay(): ReactElement {
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState<null | 'auto' | 'solve'>(null)
   const [message, setMessage] = useState<{ kind: 'info' | 'error'; text: string } | null>(null)
-  const [fitFov, setFitFov] = useState(true)
-  const [fitK1, setFitK1] = useState(false)
+  const [fitFov, setFitFov] = usePageState('sky-overlay', 'fitFov', true, (v) => (typeof v === 'boolean' ? v : undefined))
+  const [fitK1, setFitK1] = usePageState('sky-overlay', 'fitK1', false, (v) => (typeof v === 'boolean' ? v : undefined))
   const [locked, setLocked] = useState(false)
-  const [tzHours, setTzHours] = useState('0')
-  const [query, setQuery] = useState('')
+  const [tzHours, setTzHours] = usePageState('sky-overlay', 'tz', '0', (v) => (typeof v === 'string' ? v : undefined))
+  const [query, setQuery] = usePageState('sky-overlay', 'query', '', (v) => (typeof v === 'string' ? v : undefined))
   const [searchOpen, setSearchOpen] = useState(false)
   const [highlight, setHighlight] = useState<S.Vec3 | null>(null)
   const [viewTarget, setViewTarget] = useState<{ x: number; y: number; n: number } | null>(null)
-  const [aim, setAim] = useState({ alt: '35', az: '180', tilt: '0' })
+  const [aim, setAim] = usePageState('sky-overlay', 'aim', { alt: '35', az: '180', tilt: '0' }, (v) => {
+    const o = v as { alt?: unknown; az?: unknown; tilt?: unknown }
+    return typeof o?.alt === 'string' && typeof o?.az === 'string' && typeof o?.tilt === 'string' ? { alt: o.alt, az: o.az, tilt: o.tilt } : undefined
+  })
+  const [satSelected, setSatSelected] = useState<number | null>(null)
+  const [satOptions, setSatOptions] = useSatOptions()
   const workerRef = useRef<Worker | null>(null)
   const detectedFor = useRef<number | null>(null)
 
@@ -180,6 +191,7 @@ export function SkyOverlay(): ReactElement {
     setPairs([])
     setDetected([])
     setLocked(readLock(imageId))
+    setSatSelected(null)
     detectedFor.current = null
     setMode('move')
     setMessage(null)
@@ -250,11 +262,7 @@ export function SkyOverlay(): ReactElement {
   useEffect(() => {
     if (liftNeeds.includes('location')) return
     const here = { lat: observer.lat, lon: observer.lon }
-    try {
-      localStorage.setItem('night-identifier:last-location', JSON.stringify(here))
-    } catch {
-      /* not remembered */
-    }
+    rememberPlace(here.lat, here.lon) // (only in Manual mode: a photo's place must not override the location you chose)
     setLastLocation(here)
   }, [liftNeeds, observer.lat, observer.lon])
 
@@ -270,6 +278,23 @@ export function SkyOverlay(): ReactElement {
   const view = useMemo(() => (catalogue ? precess(catalogue, jd) : null), [catalogue, jd])
   // Sun, Moon and planets at the photo's time (the Moon is shifted for where the photo was taken).
   const bodies = useMemo(() => solarSystem(jd, observerObj), [jd, observerObj])
+
+  // Satellites: the camera frame is fixed at the photo's own moment; the satellites can be shown at another.
+  const satSite = useMemo<Site | null>(() => {
+    const lat = num(observer.lat)
+    const lon = num(observer.lon)
+    return lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 360 ? { latDeg: lat, lonDeg: lon } : null
+  }, [observer.lat, observer.lon])
+  const frameDate = useMemo(() => observerDate ?? new Date(), [observerDate])
+  const satClock = useSatClock(observerDate, layers.satellites)
+  const satView = useSatView({
+    enabled: layers.satellites,
+    options: satOptions,
+    site: satSite,
+    frameDate,
+    satDate: satClock.date,
+    selected: satSelected
+  })
 
   const pairMarks = useMemo<PairMark[]>(() => {
     const m = S.precessionMatrix(jd)
@@ -485,19 +510,37 @@ export function SkyOverlay(): ReactElement {
         <div className="border-b border-border p-3 text-xs font-semibold uppercase tracking-wide text-text-muted">Images</div>
         <div className="flex-1 overflow-y-auto p-2">
           {images.length === 0 && <div className="mt-4 px-2 text-center text-xs text-text-muted">No images yet. Add some in Upload &amp; Watch Folder.</div>}
-          {images.map((img) => (
-            <button
-              key={img.id}
-              onClick={() => {
-                setImageId(img.id)
-                rememberImage(img.id)
-              }}
-              className={`mb-2 block w-full overflow-hidden rounded-md border text-left ${img.id === imageId ? 'border-accent' : 'border-border hover:border-accent/50'}`}
-            >
-              <img src={previewUrl(img.id)} alt={img.filename} className="h-20 w-full object-cover" />
-              <div className="truncate px-1 py-0.5 text-[11px] text-text-muted">{img.filename}</div>
-            </button>
-          ))}
+          {images.map((img) => {
+            // The list carries the coordinates stored at import; the open photo also counts what its EXIF gave the sky view.
+            const hasGps =
+              (img.latitude != null && img.longitude != null) ||
+              (img.id === imageId && init?.observer.latitude != null && init.observer.longitude != null)
+            return (
+              <button
+                key={img.id}
+                onClick={() => {
+                  setImageId(img.id)
+                  rememberImage(img.id)
+                }}
+                className={`mb-2 block w-full overflow-hidden rounded-md border text-left ${img.id === imageId ? 'border-accent' : 'border-border hover:border-accent/50'}`}
+              >
+                <div className="relative">
+                  <img src={previewUrl(img.id)} alt={img.filename} className="h-20 w-full object-cover" />
+                  {hasGps && (
+                    <span
+                      title="This photo has GPS location data"
+                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/65 text-accent shadow"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor" aria-label="GPS location">
+                        <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" />
+                      </svg>
+                    </span>
+                  )}
+                </div>
+                <div className="truncate px-1 py-0.5 text-[11px] text-text-muted">{img.filename}</div>
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -596,6 +639,19 @@ export function SkyOverlay(): ReactElement {
               onCameraChange={setCamera}
               onPick={onPick}
               liftNeeds={liftNeeds}
+              sats={layers.satellites ? satView.frame : null}
+              onSatPick={setSatSelected}
+              satCard={
+                layers.satellites && satView.selected && satSite && satClock.date ? (
+                  <SatelliteCard
+                    sample={satView.selected}
+                    site={satSite}
+                    date={satClock.date}
+                    onClose={() => setSatSelected(null)}
+                    onFollow={(n) => navigate(`/deep-space?view=solar&sat=${n}&t=${encodeURIComponent(satClock.date!.toISOString())}`)}
+                  />
+                ) : null
+              }
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-text-muted">
@@ -734,6 +790,18 @@ export function SkyOverlay(): ReactElement {
                 <span className="text-text-muted">Star density</span>
                 <input type="range" min={-2} max={2} step={0.25} value={layers.magOffset} onChange={(e) => setLayer('magOffset', Number(e.target.value))} className="w-32" />
               </label>
+            </Section>
+
+            <Section title="Satellites">
+              <SatellitePanel
+                enabled={layers.satellites}
+                onEnabled={(on) => setLayer('satellites', on)}
+                options={satOptions}
+                onOptions={setSatOptions}
+                view={satView}
+                missing={satSite ? [] : ['location']}
+                clock={satClock}
+              />
             </Section>
 
             <fieldset disabled={locked} className={locked ? 'opacity-60' : ''}>

@@ -333,7 +333,7 @@ def get_inference_model():  # noqa: ANN201
     import torch
 
     model = _build_model()
-    model.load_state_dict(torch.load(path, map_location="cpu"))
+    model.load_state_dict(torch.load(path, map_location="cpu", weights_only=True))
     model.eval()
     _inference_model = model
     _inference_model_mtime = mtime

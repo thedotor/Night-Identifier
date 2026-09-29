@@ -1,16 +1,18 @@
 """Saved cameras and Live View settings, kept in <data dir>/live_cameras.json.
 
-Passwords live in this file in plain text (like the app's other local settings); they are never
-sent to the renderer -- `public()` strips them."""
+Passwords (and URLs with a login in them) are encrypted in this file with Windows DPAPI, see
+secrets_at_rest.py, and are never sent to the renderer -- `public()` strips them."""
 
 from __future__ import annotations
 
+import copy
 import json
 import threading
 import uuid
 from typing import Any
 
 from app.config import settings
+from app.services import secrets_at_rest
 from app.services.live.network import mask_url
 
 _lock = threading.RLock()
@@ -32,6 +34,21 @@ def _path():
     return settings.data_dir / "live_cameras.json"
 
 
+def _sensitive(key: str, value: Any) -> bool:
+    """Params that get encrypted at rest: passwords, and URLs only when they carry a login."""
+    if not isinstance(value, str) or not value:
+        return False
+    return key in SECRET_KEYS or (key == "url" and mask_url(value) != value)
+
+
+def _transform_params(data: dict[str, Any], fn) -> None:
+    for cam in data.get("cameras", []):
+        params = cam.get("params") or {}
+        for k, v in list(params.items()):
+            if _sensitive(k, v) or secrets_at_rest.is_encrypted(v):
+                params[k] = fn(v)
+
+
 def _read() -> dict[str, Any]:
     p = _path()
     if not p.exists():
@@ -42,12 +59,23 @@ def _read() -> dict[str, Any]:
         return {"cameras": [], "settings": {}}
     data.setdefault("cameras", [])
     data.setdefault("settings", {})
+    plain_on_disk = any(
+        (_sensitive(k, v) and not secrets_at_rest.is_encrypted(v)) for cam in data["cameras"] for k, v in (cam.get("params") or {}).items()
+    )
+    _transform_params(data, secrets_at_rest.decrypt)
+    if plain_on_disk and secrets_at_rest.available():
+        try:
+            _write(data)  # a file from an older version: encrypt it now
+        except OSError:
+            pass
     return data
 
 
 def _write(data: dict[str, Any]) -> None:
     settings.ensure_dirs()
-    _path().write_text(json.dumps(data, indent=2), encoding="utf-8")
+    on_disk = copy.deepcopy(data)
+    _transform_params(on_disk, secrets_at_rest.encrypt)
+    _path().write_text(json.dumps(on_disk, indent=2), encoding="utf-8")
 
 
 def list_cameras() -> list[dict[str, Any]]:

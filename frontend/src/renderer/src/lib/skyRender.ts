@@ -8,6 +8,10 @@
 import * as S from './skyMath'
 import { artImage, ART_GRID, dsoGroup, starVec, type Catalogue, type DsoGroup, type SkyView } from './skyCatalogue'
 import type { Body } from './skyEphemeris'
+import { colorOf, isBright, type SatFrame } from './satellites'
+import type { PlaneFrame } from './aircraft'
+import { drawShape, kindInfo } from './aircraftIcons'
+import type { MeteorStreak } from './meteorStreaks'
 
 export interface Layers {
   stars: boolean
@@ -15,6 +19,7 @@ export interface Layers {
   asterisms: boolean
   art: boolean // classical constellation illustrations
   planets: boolean // Sun, Moon and planets
+  satellites: boolean // ISS, Starlink...: what and when is chosen in the Satellites panel
   nebulae: boolean
   galaxies: boolean
   clusters: boolean
@@ -31,6 +36,7 @@ export const DEFAULT_LAYERS: Layers = {
   asterisms: true,
   art: false,
   planets: true,
+  satellites: false,
   nebulae: true,
   galaxies: true,
   clusters: true,
@@ -96,6 +102,12 @@ export interface DrawArgs {
   observer: S.Observer | null
   pairs: PairMark[]
   bodies: Body[]
+  /** satellites to draw (the caller only sets this when the layer is on) */
+  sats?: SatFrame | null
+  /** aircraft to draw (Live View) */
+  planes?: PlaneFrame | null
+  /** meteor-shower streaks to draw (Live View) */
+  meteors?: MeteorStreak[] | null
 }
 
 export function drawOverlay(a: DrawArgs): void {
@@ -197,6 +209,10 @@ export function drawOverlay(a: DrawArgs): void {
   }
 
   if (layers.planets) drawBodies(a, inFrame, text)
+
+  if (a.sats) drawSatellites(a, a.sats, inFrame, text)
+  if (a.planes) drawPlanes(a, a.planes, inFrame, text)
+  if (a.meteors?.length) drawMeteors(a, a.meteors)
 
   // Picked star pairs: where the user clicked vs where the catalogue star lands.
   ctx.globalAlpha = 1
@@ -471,6 +487,241 @@ function drawBodies(a: DrawArgs, inFrame: (p: S.Pixel | null) => p is S.Pixel, t
       text(label, p.x + r + 8 * px, p.y, b.color, 12)
     }
   }
+}
+
+/** Satellites: a trail through each (dim where it has been, brighter where it is going), a dot, and a name for the bright ones. */
+function drawSatellites(a: DrawArgs, sats: SatFrame, inFrame: (p: S.Pixel | null) => p is S.Pixel, text: TextFn): void {
+  const { ctx, cam, k, layers } = a
+  const px = 1 / k
+  const maxJump = Math.max(cam.width, cam.height) * 0.6 // a longer hop is the lens wrapping round, not a real path
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineWidth = 1.3 * px
+  for (const t of sats.trails) {
+    const selected = t.norad === sats.selected
+    ctx.strokeStyle = t.color
+    let prev: S.Pixel | null = null
+    for (let pass = 0; pass < 2; pass++) {
+      // pass 0: where it has been, faint; pass 1: where it is going
+      const from = pass === 0 ? 0 : t.now
+      const to = pass === 0 ? t.now : t.path.length - 1
+      ctx.globalAlpha = layers.opacity * (pass === 0 ? 0.3 : selected ? 0.95 : 0.6)
+      ctx.lineWidth = (selected ? 2 : 1.3) * px
+      ctx.beginPath()
+      prev = null
+      for (let i = from; i <= to; i++) {
+        const v = t.path[i]
+        const p = v ? S.project(cam, v) : null
+        if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y) || (prev && Math.hypot(p.x - prev.x, p.y - prev.y) > maxJump)) {
+          prev = null
+          continue
+        }
+        if (prev) ctx.lineTo(p.x, p.y)
+        else ctx.moveTo(p.x, p.y)
+        prev = p
+      }
+      ctx.stroke()
+    }
+  }
+  ctx.globalAlpha = layers.opacity
+  const labelled: { s: SatFrame['dots'][number]; p: S.Pixel; r: number }[] = []
+  for (const d of sats.dots) {
+    const p = S.project(cam, d.dir)
+    if (!inFrame(p)) continue
+    const color = colorOf(d.s.rec.flags)
+    const r = (isBright(d.s.rec.flags) ? 4.5 : 3) * px
+    ctx.lineWidth = 1.5 * px
+    ctx.strokeStyle = color
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+    if (d.s.sunlit) {
+      ctx.globalAlpha = layers.opacity
+      ctx.fill()
+    } else {
+      // in Earth's shadow a camera cannot see it: hollow and faint
+      ctx.globalAlpha = layers.opacity * 0.4
+      ctx.stroke()
+      ctx.globalAlpha = layers.opacity
+    }
+    if (d.s.rec.norad === sats.selected) {
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = '#fde047'
+      ctx.lineWidth = 2 * px
+      for (const rr of [r + 6 * px, r + 12 * px]) {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, rr, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+      ctx.globalAlpha = layers.opacity
+    }
+    if (layers.labels && (d.s.rec.norad === sats.selected || sats.labelAll || isBright(d.s.rec.flags))) labelled.push({ s: d, p, r })
+  }
+  // The picked one first, so it wins a crowded spot.
+  labelled.sort((x, y) => Number(y.s.s.rec.norad === sats.selected) - Number(x.s.s.rec.norad === sats.selected))
+  for (const { s, p, r } of labelled) text(s.s.rec.name, p.x + r + 5 * px, p.y, colorOf(s.s.rec.flags), 11)
+  if (sats.pinned) drawPinned(a, sats.pinned, sats.dots.some((d) => d.s.rec.norad === sats.pinned!.s.rec.norad), inFrame)
+  ctx.restore()
+}
+
+/** A brief streak per active meteor, bright head fading to a transparent tail, itself fading in then out
+ * over its short lifetime (already worked out as `alpha` by MeteorStreakSpawner). */
+function drawMeteors(a: DrawArgs, meteors: MeteorStreak[]): void {
+  const { ctx, cam, k, layers } = a
+  const px = 1 / k
+  ctx.save()
+  ctx.lineCap = 'round'
+  for (const m of meteors) {
+    if (m.alpha <= 0) continue
+    const tail = S.project(cam, m.tail)
+    const head = S.project(cam, m.head)
+    if (!tail || !head) continue
+    const a1 = layers.opacity * m.alpha
+    const grad = ctx.createLinearGradient(tail.x, tail.y, head.x, head.y)
+    grad.addColorStop(0, 'rgba(255,255,255,0)')
+    grad.addColorStop(1, `rgba(255,255,255,${a1})`)
+    ctx.strokeStyle = grad
+    ctx.lineWidth = 1.6 * px
+    ctx.beginPath()
+    ctx.moveTo(tail.x, tail.y)
+    ctx.lineTo(head.x, head.y)
+    ctx.stroke()
+    ctx.fillStyle = `rgba(255,255,255,${a1})`
+    ctx.beginPath()
+    ctx.arc(head.x, head.y, 1.4 * px, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+const PIN_COLOR = '#ff5c5c'
+
+/**
+ * The always-shown satellite. In the picture: a marker (hollow and dashed under the horizon) with its track and a name.
+ * Out of the picture: an arrow on the nearest edge pointing the way, and how far away it is.
+ */
+function drawPinned(a: DrawArgs, pin: NonNullable<SatFrame['pinned']>, alreadyDrawn: boolean, inFrame: (p: S.Pixel | null) => p is S.Pixel): void {
+  const { ctx, cam, k, layers } = a
+  const px = 1 / k
+  const maxJump = Math.max(cam.width, cam.height) * 0.6
+  const below = pin.s.altDeg < 0
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = PIN_COLOR
+
+  // its track: solid while above the horizon, dashed under it
+  ctx.lineWidth = 1.6 * px
+  for (const wantBelow of [false, true]) {
+    ctx.globalAlpha = layers.opacity * (wantBelow ? 0.5 : 0.75)
+    ctx.setLineDash(wantBelow ? [4 * px, 5 * px] : [])
+    ctx.beginPath()
+    let prev: S.Pixel | null = null
+    let prevBelow: boolean | null = null
+    for (const pt of pin.path) {
+      const p = S.project(cam, pt.dir)
+      const ok: boolean = !!p && Number.isFinite(p.x) && Number.isFinite(p.y) && !(prev !== null && Math.hypot(p.x - prev.x, p.y - prev.y) > maxJump)
+      if (!ok || pt.below !== wantBelow) {
+        prev = ok ? p : null
+        prevBelow = null
+        continue
+      }
+      if (prev && prevBelow === wantBelow) ctx.lineTo(p!.x, p!.y)
+      else ctx.moveTo(p!.x, p!.y)
+      prev = p
+      prevBelow = wantBelow
+    }
+    ctx.stroke()
+  }
+  ctx.setLineDash([])
+  ctx.globalAlpha = 1
+
+  const label = below ? `ISS  ${Math.abs(pin.s.altDeg).toFixed(0)}° below the horizon` : `ISS  ${pin.s.altDeg.toFixed(0)}° up`
+  const drawText = (s: string, x: number, y: number, align: CanvasTextAlign): void => {
+    ctx.font = `bold ${12 * px}px sans-serif`
+    ctx.textAlign = align
+    ctx.textBaseline = 'middle'
+    ctx.lineWidth = 3.5 * px
+    ctx.strokeStyle = 'rgba(0,0,0,0.75)'
+    ctx.strokeText(s, x, y)
+    ctx.fillStyle = PIN_COLOR
+    ctx.fillText(s, x, y)
+  }
+
+  const p = S.project(cam, pin.dir)
+  if (inFrame(p) && p.x >= 0 && p.y >= 0 && p.x <= cam.width && p.y <= cam.height) {
+    if (!alreadyDrawn) {
+      ctx.strokeStyle = PIN_COLOR
+      ctx.fillStyle = PIN_COLOR
+      ctx.lineWidth = 2 * px
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, 6 * px, 0, Math.PI * 2)
+      if (below) {
+        ctx.setLineDash([3 * px, 3 * px])
+        ctx.stroke()
+        ctx.setLineDash([])
+      } else ctx.fill()
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, 12 * px, 0, Math.PI * 2)
+      ctx.globalAlpha = 0.6
+      ctx.stroke()
+      ctx.globalAlpha = 1
+    }
+    drawText(label, p.x + 16 * px, p.y, p.x > cam.width * 0.7 ? 'right' : 'left')
+  } else {
+    // off the picture: an arrow on the edge nearest to it
+    const dx = S.dot(pin.dir, cam.right)
+    const dy = -S.dot(pin.dir, cam.up)
+    const len = Math.hypot(dx, dy) || 1
+    const ux = dx / len
+    const uy = dy / len
+    const inset = 30 * px
+    const t = Math.min((cam.width / 2 - inset) / Math.max(Math.abs(ux), 1e-6), (cam.height / 2 - inset) / Math.max(Math.abs(uy), 1e-6))
+    const ax = cam.width / 2 + ux * t
+    const ay = cam.height / 2 + uy * t
+    const ang = Math.atan2(uy, ux)
+    ctx.fillStyle = PIN_COLOR
+    ctx.strokeStyle = 'rgba(0,0,0,0.75)'
+    ctx.lineWidth = 2 * px
+    ctx.beginPath()
+    ctx.moveTo(ax + Math.cos(ang) * 14 * px, ay + Math.sin(ang) * 14 * px)
+    ctx.lineTo(ax + Math.cos(ang + 2.5) * 11 * px, ay + Math.sin(ang + 2.5) * 11 * px)
+    ctx.lineTo(ax + Math.cos(ang - 2.5) * 11 * px, ay + Math.sin(ang - 2.5) * 11 * px)
+    ctx.closePath()
+    ctx.stroke()
+    ctx.fill()
+    const away = (Math.acos(Math.max(-1, Math.min(1, S.dot(pin.dir, cam.forward)))) * 180) / Math.PI
+    const right = ax > cam.width / 2
+    drawText(label, ax + (right ? -20 : 20) * px, ay - 8 * px, right ? 'right' : 'left')
+    drawText(`${away.toFixed(0)}° from the middle of the picture`, ax + (right ? -20 : 20) * px, ay + 8 * px, right ? 'right' : 'left')
+  }
+  ctx.restore()
+}
+
+/** Only this many of the nearest aircraft get a name, or the sky is all text. */
+const MAX_PLANE_LABELS = 30
+/** How big an aircraft icon is, in screen pixels. */
+const PLANE_ICON_PX = 22
+
+/** Aircraft: an icon for what each is (airliner, small plane, helicopter…), turned the way it is heading in the picture; the nearest ones are named. */
+function drawPlanes(a: DrawArgs, planes: PlaneFrame, inFrame: (p: S.Pixel | null) => p is S.Pixel, text: TextFn): void {
+  const { ctx, cam, k, layers } = a
+  const px = 1 / k
+  ctx.save()
+  ctx.globalAlpha = layers.opacity
+  let named = 0
+  for (const d of planes.dots) {
+    const p = S.project(cam, d.dir)
+    if (!inFrame(p)) continue
+    const q = S.project(cam, d.ahead)
+    const ang = q && Math.hypot(q.x - p.x, q.y - p.y) > 1e-6 ? Math.atan2(q.y - p.y, q.x - p.x) : -Math.PI / 2
+    const colour = kindInfo(d.kind).colour
+    drawShape(ctx, d.shape, p.x, p.y, PLANE_ICON_PX * px, ang + Math.PI / 2, colour)
+    if (layers.labels && named < MAX_PLANE_LABELS) {
+      text(d.label, p.x + 14 * px, p.y, colour, 10)
+      named++
+    }
+  }
+  ctx.restore()
 }
 
 function drawHorizon(

@@ -4,6 +4,10 @@ import { btn, input } from './ui'
 
 const GROUP_TITLES: Record<string, string> = {
   camera: 'Camera',
+  exposure: 'Exposure',
+  focus: 'Focus',
+  image: 'Image',
+  status: 'Camera status',
   cooling: 'Cooling',
   simulation: 'Simulator',
   photo: 'Photo'
@@ -67,17 +71,75 @@ function RangeRow({ ctl, onCommit }: { ctl: LiveControl; onCommit: (v: number) =
   )
 }
 
+/** A spring-loaded slider: while it is held away from the middle the steps repeat (further = bigger and faster steps); letting go returns it to the middle and stops. */
+function JogRow({ ctl, onStep }: { ctl: LiveControl; onStep: (v: number) => Promise<boolean> }): ReactElement {
+  const [pos, setPos] = useState(0)
+  const posRef = useRef(0)
+  const timer = useRef<number | null>(null)
+  const max = ctl.max ?? 3
+
+  const stop = (): void => {
+    if (timer.current !== null) window.clearInterval(timer.current)
+    timer.current = null
+    posRef.current = 0
+    setPos(0)
+  }
+  useEffect(() => stop, [])
+
+  const move = (v: number): void => {
+    posRef.current = v
+    setPos(v)
+    if (v === 0) return stop()
+    if (timer.current === null) {
+      const tick = (): void => {
+        if (posRef.current === 0) return stop()
+        void onStep(posRef.current).then((ok) => ok || stop()) // an error (say, the lens is on MF) stops the repeat
+      }
+      tick()
+      timer.current = window.setInterval(tick, 250)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="text-text-muted">{ctl.label}</span>
+        <span className="tabular-nums text-text">{pos === 0 ? 'stopped' : `${pos < 0 ? 'nearer' : 'farther'} ${Math.abs(pos)}`}</span>
+      </div>
+      <input
+        type="range"
+        min={-max}
+        max={max}
+        step={1}
+        value={pos}
+        className="w-full accent-[rgb(var(--color-accent))]"
+        onChange={(e) => move(Number(e.target.value))}
+        onPointerUp={stop}
+        onPointerCancel={stop}
+        onBlur={stop}
+        onKeyUp={stop}
+      />
+      <div className="flex justify-between text-[10px] text-text-muted">
+        <span>◀ nearer</span>
+        <span>farther ▶</span>
+      </div>
+    </div>
+  )
+}
+
 export function ControlsPanel({ camId, controls }: { camId: string; controls: LiveControl[] }): ReactElement {
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => setMessage(null), [camId])
 
-  const send = async (name: string, value: unknown): Promise<void> => {
+  const send = async (name: string, value: unknown): Promise<boolean> => {
     try {
       const r = await live.setControl(camId, name, value)
       setMessage(r.queued ? 'Queued: a long exposure is still running.' : null)
+      return true
     } catch (e) {
       setMessage(errorText(e))
+      return false
     }
   }
 
@@ -114,6 +176,27 @@ export function ControlsPanel({ camId, controls }: { camId: string; controls: Li
                       ))}
                     </select>
                   </label>
+                )
+              if (c.kind === 'jog') return <JogRow key={c.name} ctl={c} onStep={(v) => send(c.name, v)} />
+              if (c.kind === 'info')
+                return (
+                  <div key={c.name} className="flex items-baseline justify-between gap-3 text-xs">
+                    <span className="text-text-muted">{c.label}</span>
+                    <span className="truncate text-right text-text">{String(c.value ?? '')}</span>
+                  </div>
+                )
+              if (c.kind === 'buttons')
+                return (
+                  <div key={c.name}>
+                    <div className="mb-1 text-xs text-text-muted">{c.label}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {(c.choices ?? []).map((o) => (
+                        <button key={o} className={btn} onClick={() => void send(c.name, o)}>
+                          {o}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )
               return (
                 <button key={c.name} className={btn} onClick={() => void send(c.name, true)}>

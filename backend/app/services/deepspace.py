@@ -55,6 +55,7 @@ TEXTURE_FILES: dict[str, str] = {
     "mercury": "2k_mercury.jpg",
     "venus": "2k_venus_surface.jpg",
     "earth": "2k_earth_daymap.jpg",
+    "earth_night": "2k_earth_nightmap.jpg",
     "moon": "2k_moon.jpg",
     "mars": "2k_mars.jpg",
     "jupiter": "2k_jupiter.jpg",
@@ -151,8 +152,8 @@ def clear_cache() -> None:
 # ---------- HTTP ----------
 
 
-def _http_get_once(url: str, accept: str | None, timeout: float = HTTP_TIMEOUT_S) -> tuple[bytes, str]:
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **({"Accept": accept} if accept else {})})
+def _http_get_once(url: str, accept: str | None, timeout: float = HTTP_TIMEOUT_S, headers: dict[str, str] | None = None) -> tuple[bytes, str]:
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **({"Accept": accept} if accept else {}), **(headers or {})})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         body = resp.read(MAX_DOWNLOAD_BYTES + 1)
         if len(body) > MAX_DOWNLOAD_BYTES:
@@ -160,13 +161,13 @@ def _http_get_once(url: str, accept: str | None, timeout: float = HTTP_TIMEOUT_S
         return body, resp.headers.get_content_type()
 
 
-def _http_get(url: str, accept: str | None = None, attempts: int = 3, timeout: float = HTTP_TIMEOUT_S) -> tuple[bytes, str]:
+def _http_get(url: str, accept: str | None = None, attempts: int = 3, timeout: float = HTTP_TIMEOUT_S, headers: dict[str, str] | None = None) -> tuple[bytes, str]:
     """Body and Content-Type. Raises FetchError on network trouble, LookupError on HTTP 404.
     Rate limits (429), server hiccups and dropped connections are retried with a short backoff."""
     last: Exception | None = None
     for attempt in range(attempts):
         try:
-            return _http_get_once(url, accept, timeout)
+            return _http_get_once(url, accept, timeout, headers)
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 raise LookupError(url) from e
@@ -187,10 +188,10 @@ def _http_get(url: str, accept: str | None = None, attempts: int = 3, timeout: f
     raise last if last is not None else FetchError("request failed")
 
 
-def _get_json(url: str, timeout: float = HTTP_TIMEOUT_S) -> Any | None:
+def _get_json(url: str, timeout: float = HTTP_TIMEOUT_S, headers: dict[str, str] | None = None) -> Any | None:
     """Parsed JSON, or None for a 404 (page does not exist)."""
     try:
-        body, _ = _http_get(url, accept="application/json", timeout=timeout)
+        body, _ = _http_get(url, accept="application/json", timeout=timeout, headers=headers)
     except LookupError:
         return None
     try:
@@ -216,7 +217,7 @@ def _check_media_url(url: str) -> None:
 def media_path(url: str) -> Path:
     """Local copy of an allowed remote image, downloading it the first time."""
     _check_media_url(url)
-    stem = hashlib.sha1(url.encode()).hexdigest()
+    stem = hashlib.sha1(url.encode(), usedforsecurity=False).hexdigest()  # a cache file name, not a security use
     existing = next(iter(_media_dir().glob(f"{stem}.*")), None)
     if existing is not None and existing.suffix in _TYPE_BY_EXT:
         return existing

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Night Identifier</title>
+<meta name="description" content="A Windows desktop app for identifying and exploring the night sky: live star overlays, satellite and camera tracking, a real-time 3D solar system, and a trainable object detector." />
+<link rel="icon" href="images/icon.png" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <img src="images/icon.png" alt="" />
+      Night Identifier
+    </a>
+    <nav class="primary" id="primary-nav">
+      <a href="#sky-overlay">Sky Overlay</a>
+      <a href="#live-view">Live View</a>
+      <a href="#solar-system">Solar System</a>
+      <a href="#earth">Earth</a>
+      <a href="#more">All features</a>
+      <a href="#tech">Tech</a>
+    </nav>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">&#9776;</button>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero wrap">
+    <div class="eyebrow">Windows desktop app</div>
+    <h1>Point a camera at the sky.<br /><span>Know exactly what you're looking at.</span></h1>
+    <p class="lead">
+      Night Identifier overlays real stars, constellations and deep-sky objects on your astrophotos,
+      tracks a live camera feed, and renders a real-time 3D solar system &mdash; all running locally,
+      with your own trainable object detector underneath.
+    </p>
+    <div class="ctas">
+      <a class="btn primary" href="#sky-overlay">See the feature breakdown</a>
+      <a class="btn ghost" href="#tech">What it's built with</a>
+    </div>
+    <div class="hero-shot">
+      <img src="images/dashboard.png" alt="Night Identifier dashboard showing status widgets, live web traffic, and a lightning map" loading="eager" />
+    </div>
+
+    <div class="stats">
+      <div><strong>18</strong><span>working pages, sidebar to settings</span></div>
+      <div><strong>15k+</strong><span>catalogue stars, live-projected</span></div>
+      <div><strong>100%</strong><span>local backend, your own data</span></div>
+      <div><strong>Real</strong><span>NASA / NOAA / USGS data feeds</span></div>
+    </div>
+  </section>
+
+  <section class="features wrap">
+
+    <div class="feature-row" id="sky-overlay">
+      <div class="copy">
+        <span class="tag">Identify</span>
+        <h3>Sky Overlay</h3>
+        <p>
+          Drop in a photo and the app plate-solves it against a real star catalogue, then draws
+          constellations, asterisms, deep-sky objects and planets directly over your frame.
+        </p>
+        <ul>
+          <li>Auto-align from EXIF (GPS, time, focal length) or pick reference stars by hand</li>
+          <li>Rectilinear and fisheye lens models, with distortion correction</li>
+          <li>Click any star or object in the overlay for its catalogue details</li>
+          <li>Constellation lines, artwork, asterisms, nebulae and galaxies as toggleable layers</li>
+        </ul>
+      </div>
+      <div class="shot"><img src="images/sky-overlay.png" alt="Sky Overlay page with constellation lines and star labels aligned over a night sky photo" loading="lazy" /></div>
+    </div>
+
+    <div class="feature-row reverse" id="live-view">
+      <div class="copy">
+        <span class="tag">Capture</span>
+        <h3>Live View</h3>
+        <p>
+          A multi-camera grid for whatever's plugged in or on the network &mdash; USB webcams, IP
+          cameras, ASCII/ASCOM astro gear, ZWO cameras and Canon EDSDK bodies.
+        </p>
+        <ul>
+          <li>Auto, 1/2/3-column layouts, plus a red filter for preserving night vision</li>
+          <li>Focus assist, exposure and capture controls per camera</li>
+          <li>Built-in motion and meteor detection on the live feed</li>
+          <li>One click sends a frame straight into the training pipeline</li>
+        </ul>
+      </div>
+      <div class="shot"><img src="images/live-view.png" alt="Live View page with a camera grid and layout controls" loading="lazy" /></div>
+    </div>
+
+    <div class="feature-row" id="solar-system">
+      <div class="copy">
+        <span class="tag">Explore</span>
+        <h3>Solar System, in real time</h3>
+        <p>
+          A full 3D flythrough of the solar system built on real orbital mechanics &mdash; planets,
+          moons, comets, dwarf planets and the Kuiper belt, all where they actually are right now.
+        </p>
+        <ul>
+          <li>Scrub from "inner planets" out to the cosmic web in one continuous zoom</li>
+          <li>Live comet and asteroid positions, with named approach highlights</li>
+          <li>Fly mode for a free-roam camera through the whole scene</li>
+          <li>Play, pause, reverse or jump the clock to any date</li>
+        </ul>
+      </div>
+      <div class="shot"><img src="images/solar-system.png" alt="3D Solar System view showing planets, dwarf planets, orbits and named comets" loading="lazy" /></div>
+    </div>
+
+    <div class="feature-row reverse" id="earth">
+      <div class="copy">
+        <span class="tag">Explore</span>
+        <h3>Earth, lit by the real Sun</h3>
+        <p>
+          The same 3D engine, pointed at home: live cloud cover, real day/night shading, city
+          lights, and a stack of overlays layered on top.
+        </p>
+        <ul>
+          <li>Satellites, aircraft, ships and your own web traffic, all plotted live</li>
+          <li>Aurora, lightning, earthquakes and volcanic activity as hazard layers</li>
+          <li>Live Sun imagery, solar wind and magnetic field lines</li>
+          <li>Sharp streamed imagery down to street level when you zoom in</li>
+        </ul>
+      </div>
+      <div class="shot"><img src="images/earth.png" alt="3D Earth view at night showing city lights and the day/night terminator over Western Europe" loading="lazy" /></div>
+    </div>
+
+    <div class="feature-row" id="deep-sky">
+      <div class="copy">
+        <span class="tag">Explore</span>
+        <h3>Deep-Sky Objects</h3>
+        <p>
+          A browsable catalogue of everything worth pointing a telescope at &mdash; planets, the
+          Messier and NGC/IC catalogues, and bright stars &mdash; with imagery cached for offline use.
+        </p>
+        <ul>
+          <li>Search by name or catalogue number</li>
+          <li>Jump here straight from an object picked in Sky Overlay</li>
+          <li>Images are downloaded once and kept locally afterwards</li>
+        </ul>
+      </div>
+      <div class="shot"><img src="images/deep-sky-objects.png" alt="Deep-Sky Objects browser listing planets, stars and NGC/IC catalogue entries" loading="lazy" /></div>
+    </div>
+
+    <div class="feature-row reverse" id="map">
+      <div class="copy">
+        <span class="tag">Organize</span>
+        <h3>Map</h3>
+        <p>
+          Every photo with GPS EXIF plots itself on a map automatically, alongside places you've
+          saved by hand &mdash; a quick way to see where a session actually happened.
+        </p>
+        <ul>
+          <li>Geotagged imports show up with zero setup</li>
+          <li>Add and name your own observing spots</li>
+          <li>Shared location model with the rest of the app (calendar, dashboard, overlays)</li>
+        </ul>
+      </div>
+      <div class="shot"><img src="images/map.png" alt="Map page showing a world map ready to plot geotagged photo locations" loading="lazy" /></div>
+    </div>
+
+  </section>
+
+  <section class="more wrap" id="more">
+    <div class="section-head">
+      <h2>There's more underneath</h2>
+      <p>The rest of the sidebar, in brief.</p>
+    </div>
+    <div class="more-grid">
+      <div class="more-card">
+        <div class="icon">&#128197;</div>
+        <h4>Sky Calendar</h4>
+        <p>Nights, moon phases, meteor showers, eclipses, occultations and satellite passes, computed from real astronomy for your location.</p>
+      </div>
+      <div class="more-card">
+        <div class="icon">&#9889;</div>
+        <h4>Space weather &amp; aurora</h4>
+        <p>NOAA aurora oval, Kp index, solar wind, CMEs and flares, plus IGRF-14 magnetic field lines around the planet.</p>
+      </div>
+      <div class="more-card">
+        <div class="icon">&#127744;</div>
+        <h4>Hazards</h4>
+        <p>Live earthquakes, volcanic activity and wildfire heat spots from USGS, GVP and FIRMS, with optional notifications.</p>
+      </div>
+      <div class="more-card">
+        <div class="icon">&#9992;</div>
+        <h4>Traffic</h4>
+        <p>Aircraft and ships tracked live over the 3D Earth, plus a private view of your own PC's outbound network connections.</p>
+      </div>
+      <div class="more-card">
+        <div class="icon">&#127919;</div>
+        <h4>Object detector training</h4>
+        <p>Annotate photos by hand, queue GPU training runs, and browse results &mdash; Upload &amp; Watch Folder, Annotate, Train, Object Library and Results Gallery all feed the same model.</p>
+      </div>
+      <div class="more-card">
+        <div class="icon">&#128276;</div>
+        <h4>Notifications &amp; dashboard</h4>
+        <p>A fully customizable dashboard of drag-and-resize widgets, with alerts for the events you actually care about.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="tech" id="tech">
+    <div class="wrap">
+      <div class="tech-label">Built with</div>
+      <div class="tech-pills">
+        <span class="pill">Electron</span>
+        <span class="pill">React + TypeScript</span>
+        <span class="pill">Three.js / WebGL</span>
+        <span class="pill">Python + FastAPI</span>
+        <span class="pill">Skyfield / SGP4</span>
+        <span class="pill">IGRF-14</span>
+        <span class="pill">NOAA</span>
+        <span class="pill">USGS</span>
+        <span class="pill">NASA / JPL</span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span class="brand">Night Identifier</span>
+    <span>A local-first desktop app &mdash; runs entirely on your own machine, with your own data.</span>
+  </div>
+</footer>
+
+<script>
+  var toggle = document.getElementById('nav-toggle');
+  var nav = document.getElementById('primary-nav');
+  toggle.addEventListener('click', function () {
+    nav.classList.toggle('open');
+  });
+  nav.querySelectorAll('a').forEach(function (a) {
+    a.addEventListener('click', function () {
+      nav.classList.remove('open');
+    });
+  });
+</script>
+
+</body>
+</html>

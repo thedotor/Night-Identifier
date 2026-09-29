@@ -42,7 +42,7 @@ export function positionAtMeanAnomaly(el: { a: number; e: number; i: number; om:
 export const meanAnomaly = (el: Elements, jd: number): number => (TWO_PI * (jd - el.tp)) / el.per
 
 /** Rotation from the orbit's own plane (x towards perihelion) into the ecliptic frame. */
-function orbitBasis(el: Elements): { p: Vec3; q: Vec3 } {
+export function orbitBasis(el: Elements): { p: Vec3; q: Vec3 } {
   const co = Math.cos(el.om * DEG)
   const so = Math.sin(el.om * DEG)
   const cw = Math.cos(el.w * DEG)
@@ -56,7 +56,7 @@ function orbitBasis(el: Elements): { p: Vec3; q: Vec3 } {
 }
 
 /** Position on the orbit for an eccentric anomaly. */
-function atEccentric(el: Elements, basis: { p: Vec3; q: Vec3 }, E: number): Vec3 {
+export function atEccentric(el: Elements, basis: { p: Vec3; q: Vec3 }, E: number): Vec3 {
   const x = el.a * (Math.cos(E) - el.e)
   const y = el.a * Math.sqrt(1 - el.e * el.e) * Math.sin(E)
   return [

@@ -59,6 +59,14 @@ NOTABLE: list[tuple[str, str, str]] = [
     ("comet", "17P", "Holmes"),
     ("comet", "C/1995 O1", "Hale-Bopp"),
     ("comet", "C/2020 F3", "NEOWISE"),
+    # Meteor-shower parent bodies not already covered above (Perseids/109P, Leonids/55P, Eta Aquariids
+    # + Orionids/1P, Draconids/21P, and both Taurids/2P are already in the list): see meteorStreamData.ts
+    # on the frontend for which shower maps to which of these.
+    ("asteroid", "3200", "Phaethon"),
+    ("asteroid", "2003 EH1", "2003 EH1"),
+    ("comet", "8P", "Tuttle"),
+    ("comet", "96P", "Machholz"),
+    ("comet", "C/1861 G1", "Thatcher"),
 ]
 
 # Population clouds: (key, SBDB class, how many). "First N numbered" is as good a sample as any

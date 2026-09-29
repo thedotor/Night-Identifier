@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { api, LogEntry, LogLevel, wsUrl } from '@renderer/lib/api'
 
+import { usePageState } from '@renderer/lib/pageState'
 const LEVELS: LogLevel[] = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
 const MAX_DISPLAYED = 1000
 
@@ -14,8 +15,8 @@ const LEVEL_COLOR: Record<LogLevel, string> = {
 
 export function Log(): ReactElement {
   const [entries, setEntries] = useState<LogEntry[]>([])
-  const [levelFilter, setLevelFilter] = useState<LogLevel | 'ALL'>('ALL')
-  const [autoScroll, setAutoScroll] = useState(true)
+  const [levelFilter, setLevelFilter] = usePageState<LogLevel | 'ALL'>('log', 'level', 'ALL', (v) => (typeof v === 'string' ? (v as LogLevel | 'ALL') : undefined))
+  const [autoScroll, setAutoScroll] = usePageState('log', 'autoScroll', true, (v) => (typeof v === 'boolean' ? v : undefined))
   const [connected, setConnected] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 

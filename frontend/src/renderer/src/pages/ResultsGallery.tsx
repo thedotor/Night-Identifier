@@ -14,6 +14,7 @@ import { ContextMenu, ContextMenuItem } from '@renderer/components/ContextMenu'
 import { PropertiesModal } from '@renderer/components/PropertiesModal'
 import { previewUrl } from '@renderer/lib/api'
 
+import { usePageState } from '@renderer/lib/pageState'
 export function ResultsGallery(): ReactElement {
   const [status, setStatus] = useState<ResultsStatus | null>(null)
   const [results, setResults] = useState<ResultImage[]>([])
@@ -21,7 +22,7 @@ export function ResultsGallery(): ReactElement {
   const [progress, setProgress] = useState<{ processed: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [viewerImageId, setViewerImageId] = useState<number | null>(null)
+  const [viewerImageId, setViewerImageId] = usePageState<number | null>('results', 'viewer', null, (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined))
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; imageId: number } | null>(
     null
   )

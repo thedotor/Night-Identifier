@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useNotifications } from './NotificationContext'
+import { goToRoute, useNotifications } from './NotificationContext'
 
 const POSITION_CLASS = {
   'top-right': 'top-12 right-4 items-end',
@@ -27,9 +27,21 @@ export function ToastHost(): ReactElement {
           className="pointer-events-auto flex w-80 overflow-hidden rounded-lg border border-border bg-surface-raised shadow-lg"
         >
           <div className={`w-1 shrink-0 ${LEVEL_BAR[t.level]}`} />
-          <div className="min-w-0 flex-1 px-3 py-2">
+          <div
+            className={`min-w-0 flex-1 px-3 py-2 ${t.route ? 'cursor-pointer hover:bg-surface' : ''}`}
+            title={t.route ? 'Click to open' : undefined}
+            onClick={
+              t.route
+                ? (): void => {
+                    goToRoute(t.route!)
+                    dismiss(t.id)
+                  }
+                : undefined
+            }
+          >
             <div className="text-sm font-medium text-text">{t.title}</div>
             <div className="mt-0.5 break-words text-xs text-text-muted">{t.body}</div>
+            {t.route && <div className="mt-1 text-[10px] text-accent">Click to open</div>}
           </div>
           <button
             onClick={() => dismiss(t.id)}

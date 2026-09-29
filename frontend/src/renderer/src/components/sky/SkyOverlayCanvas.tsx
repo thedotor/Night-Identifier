@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import * as S from '@renderer/lib/skyMath'
 import { onArtLoaded, starLabel, type Catalogue, type SkyView } from '@renderer/lib/skyCatalogue'
 import type { Body } from '@renderer/lib/skyEphemeris'
@@ -6,6 +6,7 @@ import { regionAt, type Region } from '@renderer/lib/blockedAreas'
 import { autoMagLimit, drawOverlay, nearbyStars, type Candidate, type Layers, type PairMark } from '@renderer/lib/skyRender'
 import { pickObjects, type SkyObjectRef } from '@renderer/lib/skyPick'
 import { ObjectInfoCard } from '@renderer/components/deepspace/ObjectInfoCard'
+import type { SatFrame } from '@renderer/lib/satellites'
 import { surveyMatrix } from '@renderer/lib/skySurvey'
 import { MAX_GROUND_FOV_DEG, stepAltitude, zoomForFov } from '@renderer/lib/skyLift'
 import { SkyLiftLayer, type LiftStage } from './SkyLiftLayer'
@@ -47,6 +48,11 @@ interface Props {
   onPick: (pick: PickedStar) => void
   /** what the zoom-out to space still needs for this photo ('location', 'time'); empty when it has both */
   liftNeeds?: string[]
+  /** satellites to draw; clicking one calls onSatPick with its NORAD number (null: clicked elsewhere) */
+  sats?: SatFrame | null
+  onSatPick?: (norad: number | null) => void
+  /** the picked satellite's card, docked in the corner */
+  satCard?: ReactNode
 }
 
 interface ViewXform {
@@ -209,7 +215,7 @@ export function SkyOverlayCanvas(props: Props): ReactElement {
     ctx.rect(0, 0, camera.width, camera.height)
     ctx.clip()
     if (catalogue && view)
-      drawOverlay({ ctx, cam: camera, cat: catalogue, view, layers, k: xf.k, observer, pairs, bodies })
+      drawOverlay({ ctx, cam: camera, cat: catalogue, view, layers, k: xf.k, observer, pairs, bodies, sats: props.sats })
     if (blocked.length || lasso) {
       ctx.fillStyle = 'rgba(239, 68, 68, 0.22)'
       ctx.strokeStyle = '#ef4444'
@@ -271,7 +277,7 @@ export function SkyOverlayCanvas(props: Props): ReactElement {
     ctx.strokeStyle = 'rgba(255,255,255,0.25)'
     ctx.lineWidth = 1 / xf.k
     ctx.strokeRect(0, 0, camera.width, camera.height)
-  }, [img, size, xf, camera, catalogue, view, layers, observer, mode, pairs, detected, locked, highlight, bodies, blocked, lasso, artTick, fade.survey, fade.t])
+  }, [img, size, xf, camera, catalogue, view, layers, observer, mode, pairs, detected, locked, highlight, bodies, blocked, lasso, artTick, fade.survey, fade.t, props.sats])
 
   // ---------- pointer interaction ----------
   const toImage = (sx: number, sy: number): S.Pixel => ({
@@ -379,7 +385,23 @@ export function SkyOverlayCanvas(props: Props): ReactElement {
     }
     if (d && !d.moved && e.button === 0 && !spaceDown.current && d.kind !== 'roll' && (live.current.mode === 'move' || (live.current.mode === 'pick' && live.current.locked))) {
       // A plain click on the sky: open the details card for whatever is under it.
-      const { camera: cam, catalogue: cat, view: sky, xf: v, layers: lay, bodies: bs } = live.current
+      const { camera: cam, catalogue: cat, view: sky, xf: v, layers: lay, bodies: bs, sats } = live.current
+      if (sats) {
+        // Satellites first: they are the moving things, and usually what was aimed at.
+        let best: { norad: number; d: number } | null = null
+        for (const dot of sats.dots) {
+          const q = S.project(cam, dot.dir)
+          if (!q) continue
+          const dist = Math.hypot(q.x - d.last.x, q.y - d.last.y) * v.k
+          if (dist <= CLICK_RADIUS_SCREEN_PX && (!best || dist < best.d)) best = { norad: dot.s.rec.norad, d: dist }
+        }
+        if (best) {
+          live.current.onSatPick?.(best.norad)
+          setCard(null)
+          return
+        }
+        if (sats.selected !== null) live.current.onSatPick?.(null)
+      }
       if (cat && sky) {
         const list = pickObjects(cam, cat, sky, bs, lay, d.last.x, d.last.y, CLICK_RADIUS_SCREEN_PX / v.k)
         setCard(list.length ? { objects: list, screen: d.startScreen } : null)
@@ -563,6 +585,7 @@ export function SkyOverlayCanvas(props: Props): ReactElement {
           }}
         />
       )}
+      {props.satCard && <div className="absolute right-2 top-10 z-20 max-h-[calc(100%-3.5rem)] overflow-y-auto rounded-md">{props.satCard}</div>}
       {locked && (
         <div className="pointer-events-none absolute right-2 top-2 rounded bg-black/60 px-2 py-1 text-xs text-warning">🔒 Overlay locked</div>
       )}

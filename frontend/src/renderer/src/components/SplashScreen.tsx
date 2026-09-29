@@ -1,8 +1,9 @@
 import { useEffect, useRef, type ReactElement } from 'react'
 
 interface Star {
-  x: number
-  y: number
+  /** Position as a fraction of the viewport, so the field refills the screen after a resize. */
+  fx: number
+  fy: number
   radius: number
   baseAlpha: number
   twinkleSpeed: number
@@ -384,8 +385,8 @@ export function SplashScreen(): ReactElement {
     window.addEventListener('resize', resize)
 
     const stars: Star[] = Array.from({ length: 220 }, () => ({
-      x: Math.random() * width,
-      y: Math.random() * height,
+      fx: Math.random(),
+      fy: Math.random(),
       radius: Math.random() * 1.4 + 0.3,
       baseAlpha: Math.random() * 0.6 + 0.3,
       twinkleSpeed: Math.random() * 1.5 + 0.4,
@@ -533,7 +534,7 @@ export function SplashScreen(): ReactElement {
         const alpha = s.baseAlpha * (0.6 + 0.4 * Math.sin(s.twinklePhase))
         ctx.beginPath()
         ctx.fillStyle = `rgba(226, 232, 240, ${alpha.toFixed(3)})`
-        ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2)
+        ctx.arc(s.fx * width, s.fy * height, s.radius, 0, Math.PI * 2)
         ctx.fill()
       }
 

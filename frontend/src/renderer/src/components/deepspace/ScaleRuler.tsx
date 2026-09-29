@@ -22,7 +22,7 @@ interface Props {
 }
 
 const MIN_AU = 1e-4
-const MAX_AU = 1e13
+const MAX_AU = 1e15
 const LOG_MIN = Math.log10(MIN_AU)
 const LOG_MAX = Math.log10(MAX_AU)
 
@@ -32,7 +32,8 @@ const LANDMARKS: { au: number; label: string }[] = [
   { au: AU_PER_LY, label: '1 light-year' },
   { au: AU_PER_LY * 1e3, label: '1,000 ly' },
   { au: AU_PER_LY * 1e5, label: '100,000 ly' },
-  { au: AU_PER_LY * 1e7, label: '10 million ly' }
+  { au: AU_PER_LY * 1e7, label: '10 million ly' },
+  { au: AU_PER_LY * 1e9, label: '1 billion ly' }
 ]
 
 const frac = (au: number): number => Math.max(0, Math.min(1, (Math.log10(au) - LOG_MIN) / (LOG_MAX - LOG_MIN)))
@@ -46,6 +47,7 @@ export function fmtScale(au: number): string {
   if (ly < 0.1) return `${Math.round(au).toLocaleString()} AU · ${(ly * 365.25).toFixed(0)} light-days`
   if (ly < 1000) return `${ly.toPrecision(ly < 10 ? 2 : 3)} light-years`
   if (ly < 1e6) return `${Math.round(ly).toLocaleString()} light-years`
+  if (ly >= 1e9) return `${(ly / 1e9).toPrecision(2)} billion light-years`
   return `${(ly / 1e6).toPrecision(ly < 1e7 ? 2 : 3)} million light-years`
 }
 

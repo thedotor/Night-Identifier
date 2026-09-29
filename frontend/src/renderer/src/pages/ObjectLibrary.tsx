@@ -9,11 +9,12 @@ import { api, ApiError, ObjectType, referenceImageUrl } from '@renderer/lib/api'
 import { ContextMenu, ContextMenuItem } from '@renderer/components/ContextMenu'
 import { ImagePreviewModal } from '@renderer/components/ImagePreviewModal'
 
+import { usePageState } from '@renderer/lib/pageState'
 export function ObjectLibrary(): ReactElement {
   const [objects, setObjects] = useState<ObjectType[]>([])
   const [loading, setLoading] = useState(true)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
+  const [name, setName] = usePageState('objects', 'name', '', (v) => (typeof v === 'string' ? v : undefined))
+  const [description, setDescription] = usePageState('objects', 'description', '', (v) => (typeof v === 'string' ? v : undefined))
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [imgVersion, setImgVersion] = useState<Record<number, number>>({})

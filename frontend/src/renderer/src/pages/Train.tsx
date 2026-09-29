@@ -9,6 +9,7 @@ import {
   wsUrl
 } from '@renderer/lib/api'
 
+import { usePageState } from '@renderer/lib/pageState'
 function formatMetricKey(key: string): string {
   return key.replace(/^metrics\//, '').replace(/^val\//, 'val ').replace(/\(B\)$/, '')
 }
@@ -51,10 +52,10 @@ export function Train(): ReactElement {
   const [liveEpoch, setLiveEpoch] = useState<{ epoch: number; total: number; metrics: Record<string, number> } | null>(
     null
   )
-  const [epochs, setEpochs] = useState(50)
-  const [batchSize, setBatchSize] = useState(16)
-  const [workers, setWorkers] = useState(4)
-  const [device, setDevice] = useState('auto')
+  const [epochs, setEpochs] = usePageState('train', 'epochs', 50, (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined))
+  const [batchSize, setBatchSize] = usePageState('train', 'batch', 16, (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined))
+  const [workers, setWorkers] = usePageState('train', 'workers', 4, (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined))
+  const [device, setDevice] = usePageState('train', 'device', 'auto', (v) => (typeof v === 'string' ? v : undefined))
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [epochDurations, setEpochDurations] = useState<number[]>([])

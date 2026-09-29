@@ -14,6 +14,7 @@ import zlib
 from typing import Any
 
 import numpy as np
+from defusedxml.ElementTree import DefusedXMLParser
 
 from app.services import fits_io
 from app.services.live.base import CameraDriver, CameraError, Frame, control
@@ -29,7 +30,8 @@ class IndiConnection:
             self.sock = socket.create_connection((host, port), timeout=6)
         except OSError as exc:
             raise CameraError(f"Could not connect to the INDI server at {host}:{port}: {exc}") from exc
-        self.parser = ET.XMLPullParser(events=("start", "end"))
+        # replies come from the LAN / the internet: no entity tricks (matches onvif.py, hazards.py)
+        self.parser = ET.XMLPullParser(events=("start", "end"), _parser=DefusedXMLParser(target=ET.TreeBuilder()))
         self.parser.feed(b"<stream>")
         self.depth = 0
         self.props: dict[tuple[str, str], dict[str, Any]] = {}

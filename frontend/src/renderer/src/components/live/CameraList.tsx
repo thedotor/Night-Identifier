@@ -10,6 +10,9 @@ interface Props {
   onToggleShown: (id: string) => void
   onEdit: (id: string) => void
   onAdd: () => void
+  /** folded to a thin strip, so the picture gets the room */
+  collapsed: boolean
+  onToggleCollapsed: () => void
 }
 
 const KIND_ICON: Record<string, string> = {
@@ -20,14 +23,38 @@ const KIND_ICON: Record<string, string> = {
   synthetic: '✦'
 }
 
-export function CameraList({ cameras, selectedId, shown, onSelect, onToggleShown, onEdit, onAdd }: Props): ReactElement {
+export function CameraList({ cameras, selectedId, shown, onSelect, onToggleShown, onEdit, onAdd, collapsed, onToggleCollapsed }: Props): ReactElement {
+  if (collapsed)
+    return (
+      <aside className="flex w-8 shrink-0 flex-col items-center border-r border-border bg-surface py-2">
+        <button className="rounded px-1.5 py-1 text-sm leading-none text-text-muted hover:bg-accent/10 hover:text-text" onClick={onToggleCollapsed} title="Show the camera list ( [ )" aria-label="Show the camera list">
+          »
+        </button>
+        <span className="mt-3 text-[11px] uppercase tracking-widest text-text-muted [writing-mode:vertical-rl]">Cameras</span>
+        <div className="mt-3 flex flex-col gap-1.5">
+          {cameras.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => onSelect(c.id)}
+              title={c.name}
+              className={`h-2.5 w-2.5 rounded-full ${stateDot(c.status?.state)} ${c.id === selectedId ? 'ring-2 ring-accent ring-offset-1 ring-offset-surface' : 'opacity-70 hover:opacity-100'}`}
+            />
+          ))}
+        </div>
+      </aside>
+    )
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
-      <div className="flex items-center justify-between px-3 py-3">
+      <div className="flex items-center justify-between gap-2 px-3 py-3">
         <h2 className="text-sm font-semibold text-text">Cameras</h2>
-        <button onClick={onAdd} className={btnPrimary}>
-          + Add camera
-        </button>
+        <span className="flex items-center gap-1">
+          <button onClick={onAdd} className={btnPrimary}>
+            + Add camera
+          </button>
+          <button className="rounded px-1.5 py-1 text-sm leading-none text-text-muted hover:bg-accent/10 hover:text-text" onClick={onToggleCollapsed} title="Hide the camera list ( [ )" aria-label="Hide the camera list">
+            «
+          </button>
+        </span>
       </div>
       <div className="flex-1 space-y-1 overflow-y-auto px-2 pb-3">
         {cameras.length === 0 && (
